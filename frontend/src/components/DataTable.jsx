@@ -1,0 +1,303 @@
+import React, { useMemo, useState } from "react";
+import {
+  ArrowDownAZ,
+  ArrowUpAZ,
+  ArrowUpDown,
+  Check,
+  Pencil,
+  PlusCircle,
+  Search,
+  Trash2,
+  XCircle
+} from "lucide-react";
+
+const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButtonText = "Add Row" }) => {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
+  const [editingId, setEditingId] = useState(null);
+  const [editData, setEditData] = useState({});
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newRowData, setNewRowData] = useState({});
+
+  const handleSort = (columnKey) => {
+    setSortConfig((current) => {
+      if (current.key === columnKey) {
+        return {
+          key: columnKey,
+          direction: current.direction === "asc" ? "desc" : "asc"
+        };
+      }
+
+      return { key: columnKey, direction: "asc" };
+    });
+  };
+
+  const filteredAndSortedData = useMemo(() => {
+    const searchLower = searchTerm.trim().toLowerCase();
+
+    const filtered = data.filter((row) => {
+      if (!searchLower) return true;
+
+      return columns.some((col) => {
+        const value = row[col.key];
+        if (value === null || value === undefined) {
+          return false;
+        }
+
+        return String(value).toLowerCase().includes(searchLower);
+      });
+    });
+
+    if (!sortConfig.key) {
+      return filtered;
+    }
+
+    const { key, direction } = sortConfig;
+    const multiplier = direction === "asc" ? 1 : -1;
+
+    return [...filtered].sort((a, b) => {
+      const aValue = a[key];
+      const bValue = b[key];
+
+      if (aValue === null || aValue === undefined) return 1 * multiplier;
+      if (bValue === null || bValue === undefined) return -1 * multiplier;
+
+      if (typeof aValue === "number" && typeof bValue === "number") {
+        return (aValue - bValue) * multiplier;
+      }
+
+      const aString = String(aValue).toLowerCase();
+      const bString = String(bValue).toLowerCase();
+
+      if (aString < bString) return -1 * multiplier;
+      if (aString > bString) return 1 * multiplier;
+      return 0;
+    });
+  }, [columns, data, searchTerm, sortConfig]);
+
+  const handleEdit = (row) => {
+    setEditingId(row.id);
+    setEditData({ ...row });
+  };
+
+  const handleSave = () => {
+    onEdit(editingId, editData);
+    setEditingId(null);
+    setEditData({});
+  };
+
+  const handleCancel = () => {
+    setEditingId(null);
+    setEditData({});
+  };
+
+  const handleAdd = () => {
+    onAdd(newRowData);
+    setNewRowData({});
+    setShowAddModal(false);
+  };
+
+  return (
+    <div>
+      <div
+        className="table-toolbar"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "1.5rem",
+          gap: "1rem",
+          flexWrap: "wrap"
+        }}
+      >
+        <div className="search-box" style={{ flex: "1", maxWidth: "360px" }}>
+          <Search aria-hidden="true" className="search-icon" size={18} />
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Search..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            data-testid="table-search"
+          />
+        </div>
+        {isEditor && (
+          <button
+            className="btn btn-primary btn-icon"
+            onClick={() => setShowAddModal(true)}
+            data-testid="add-row-btn"
+            aria-label={addButtonText}
+          >
+            <PlusCircle size={18} aria-hidden="true" />
+          </button>
+        )}
+      </div>
+
+      <div className="table-container">
+        <table className="data-table">
+          <thead>
+            <tr>
+              {columns.map((col) => {
+                const isSorted = sortConfig.key === col.key;
+                const SortIcon = !isSorted
+                  ? ArrowUpDown
+                  : sortConfig.direction === "asc"
+                  ? ArrowUpAZ
+                  : ArrowDownAZ;
+
+                return (
+                  <th key={col.key}>
+                    <button
+                      type="button"
+                      className="table-sort-button"
+                      onClick={() => handleSort(col.key)}
+                      aria-label={`Sort by ${col.label}`}
+                    >
+                      <span>{col.label}</span>
+                      <SortIcon aria-hidden="true" size={16} />
+                    </button>
+                  </th>
+                );
+              })}
+              {isEditor && <th>Actions</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {filteredAndSortedData.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={columns.length + (isEditor ? 1 : 0)}
+                  style={{ textAlign: "center", padding: "2rem", color: "#4a5568" }}
+                >
+                  No data available. {isEditor && "Click 'Add Row' to get started."}
+                </td>
+              </tr>
+            ) : (
+              filteredAndSortedData.map((row) => (
+                <tr key={row.id}>
+                  {columns.map((col) => (
+                    <td key={col.key} data-label={col.label}>
+                      {editingId === row.id ? (
+                        <input
+                          type="text"
+                          className="input"
+                          style={{ padding: "0.5rem", fontSize: "0.875rem" }}
+                          value={editData[col.key] ?? ""}
+                          onChange={(e) => setEditData({ ...editData, [col.key]: e.target.value })}
+                        />
+                      ) : (
+                        row[col.key] ?? "-"
+                      )}
+                    </td>
+                  ))}
+                  {isEditor && (
+                    <td>
+                      {editingId === row.id ? (
+                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                          <button
+                            className="btn btn-success btn-icon"
+                            onClick={handleSave}
+                            data-testid={`save-${row.id}`}
+                            aria-label="Save row"
+                          >
+                            <Check size={18} aria-hidden="true" />
+                          </button>
+                          <button
+                            className="btn btn-outline btn-icon"
+                            onClick={handleCancel}
+                            aria-label="Cancel editing"
+                          >
+                            <XCircle size={18} aria-hidden="true" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                          <button
+                            className="btn btn-outline btn-icon"
+                            onClick={() => handleEdit(row)}
+                            data-testid={`edit-${row.id}`}
+                            aria-label="Edit row"
+                          >
+                            <Pencil size={18} aria-hidden="true" />
+                          </button>
+                          <button
+                            className="btn btn-danger btn-icon"
+                            onClick={() => onDelete(row.id)}
+                            data-testid={`delete-${row.id}`}
+                            aria-label="Delete row"
+                          >
+                            <Trash2 size={18} aria-hidden="true" />
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  )}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {showAddModal && (
+        <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">{addButtonText}</h2>
+              <button className="close-btn" onClick={() => setShowAddModal(false)} aria-label="Close">
+                <XCircle size={18} aria-hidden="true" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleAdd();
+              }}
+            >
+              {columns.map((col) => (
+                <div className="form-group" key={col.key}>
+                  <label className="label">{col.label}</label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={newRowData[col.key] ?? ""}
+                    onChange={(e) => setNewRowData({ ...newRowData, [col.key]: e.target.value })}
+                    placeholder={`Enter ${col.label.toLowerCase()}`}
+                    data-testid={`new-${col.key}`}
+                  />
+                </div>
+              ))}
+
+              <div style={{ display: "flex", gap: "1rem", marginTop: "1.5rem" }}>
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-icon"
+                  style={{ flex: 1 }}
+                  data-testid="submit-new-row"
+                  aria-label="Create row"
+                >
+                  <PlusCircle size={18} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-icon"
+                  onClick={() => {
+                    setShowAddModal(false);
+                    setNewRowData({});
+                  }}
+                  style={{ flex: 1 }}
+                  aria-label="Cancel"
+                >
+                  <XCircle size={18} aria-hidden="true" />
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default DataTable;

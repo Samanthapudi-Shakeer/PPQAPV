@@ -1,0 +1,93 @@
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import { API } from "../../App";
+import DataTable from "../DataTable";
+import { CaseUpperIcon, Cross, EyeClosedIcon, InfoIcon, Rocket, Sparkle, UndoDot, View, Watch } from "lucide-react";
+import { Close } from "@radix-ui/react-dialog";
+
+const M2TOC = ({ projectId, isEditor }) => {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showInfo, setShowInfo] = useState(false);
+
+  useEffect(() => {
+    fetchData();
+  }, [projectId]);
+
+  const fetchData = async () => {
+    try {
+      const response = await axios.get(`${API}/projects/${projectId}/toc-entries`);
+      setData(response.data);
+    } catch (err) {
+      console.error("Failed to fetch TOC entries", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAdd = async (newData) => {
+    try {
+      await axios.post(`${API}/projects/${projectId}/toc-entries`, newData);
+      fetchData();
+    } catch (err) {
+      alert("Failed to add entry");
+    }
+  };
+
+  const handleEdit = async (id, updatedData) => {
+    try {
+      const { id: _, project_id, ...dataToSend } = updatedData;
+      await axios.put(`${API}/projects/${projectId}/toc-entries/${id}`, dataToSend);
+      fetchData();
+    } catch (err) {
+      alert("Failed to update entry");
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this entry?")) return;
+    try {
+      await axios.delete(`${API}/projects/${projectId}/toc-entries/${id}`);
+      fetchData();
+    } catch (err) {
+      alert("Failed to delete entry");
+    }
+  };
+
+  const columns = [
+    { key: "sheet_name", label: "Sheet Name" },
+    { key: "sections_in_sheet", label: "Sections in Sheet" }
+  ];
+
+  if (loading) {
+    return <div className="loading">Loading...</div>;
+  }
+
+  return (
+    <div>
+      <h2 style={{ fontSize: "1.5rem", fontWeight: "600", marginBottom: "1.5rem" }}>
+        Table of Contents
+      </h2>
+      <button  onClick={() => setShowInfo(!showInfo)} className="mb-4 px-3 py-1 bg-blue-500 font  rounded hover:bg-blue-600">
+        
+        {showInfo ? <UndoDot></UndoDot> : <InfoIcon></InfoIcon> }
+      </button>
+      {showInfo && (
+        <div className="mb-4 p-3 border rounded bg-gray-50">
+Showing you Table of Contents       
+</div>
+      )}
+      <DataTable
+        columns={columns}
+        data={data}
+        onAdd={handleAdd}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        isEditor={isEditor}
+        addButtonText="Add TOC Entry"
+      />
+    </div>
+  );
+};
+
+export default M2TOC;
