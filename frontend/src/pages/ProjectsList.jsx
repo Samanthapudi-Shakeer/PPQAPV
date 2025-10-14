@@ -125,68 +125,67 @@ const ProjectsList = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950">
+    <div className="min-h-screen bg-gradient-to-br from-sky-50 via-white to-emerald-50">
       <div className="mx-auto flex max-w-7xl flex-col gap-8 px-4 py-12 sm:px-8">
-        <section className="relative overflow-hidden rounded-3xl border border-white/5 bg-white/5 p-8 text-white shadow-2xl backdrop-blur">
-          <div className="absolute -left-32 top-20 h-56 w-56 rounded-full bg-indigo-500/40 blur-3xl" aria-hidden="true" />
-          <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-purple-500/30 blur-3xl" aria-hidden="true" />
+        <section className="relative overflow-hidden rounded-3xl border border-sky-100 bg-white/80 p-8 text-slate-700 shadow-xl backdrop-blur-sm">
+          <div className="absolute -left-32 top-20 h-56 w-56 rounded-full bg-sky-200/60 blur-3xl" aria-hidden="true" />
+          <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-emerald-200/50 blur-3xl" aria-hidden="true" />
           <div className="relative flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
             <div className="max-w-2xl space-y-4">
-              <Badge className="bg-white/20 text-white shadow" variant="secondary">
+              <Badge className="bg-indigo-100 text-indigo-700 shadow-sm" variant="secondary">
                 <Sparkles className="mr-1 h-4 w-4" />Toshiba Software India Private Ltd
               </Badge>
-              <h1 className="text-4xl font-bold leading-tight sm:text-5xl">
+              <h1 className="text-4xl font-bold leading-tight text-slate-900 sm:text-5xl">
                 Project Plan
               </h1>
-              <p className="text-sm text-indigo-100/90 sm:text-base">
-                Launch, track, project plans in the organisation.
+              <p className="text-sm text-slate-600 sm:text-base">
+                Launch, track, and nurture project plans across the organisation.
               </p>
-              <div className="flex flex-wrap items-center gap-4 text-sm text-indigo-100/80">
-                <div className="flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1">
-                  <Rocket className="h-4 w-4" />
+              <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
+                <div className="flex items-center gap-2 rounded-full border border-indigo-100 bg-indigo-50 px-4 py-1">
+                  <Rocket className="h-4 w-4 text-indigo-500" />
                   <span>Showing {projects.length} Projects</span>
                 </div>
-                
               </div>
             </div>
 
-            <Card className="w-full max-w-sm border-white/10 bg-slate-900/70 text-slate-50 shadow-xl backdrop-blur">
+            <Card className="w-full max-w-sm border-slate-200 bg-white/90 text-slate-700 shadow-lg backdrop-blur-sm">
               <CardHeader className="pb-4">
-                <CardTitle className="text-base text-slate-200">
+                <CardTitle className="text-base text-slate-900">
                   {currentUser.username || "Planner"}
                 </CardTitle>
-                <CardDescription className="text-sm text-slate-400">
-                  Welcome back ....
+                <CardDescription className="text-sm text-slate-500">
+                  Welcome back — everything is up to date.
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex items-center gap-4 pb-0">
-                <Avatar className="h-12 w-12 border border-white/20 bg-white/10">
-                  <AvatarFallback className="bg-indigo-500 text-lg text-white">
+                <Avatar className="h-12 w-12 border border-indigo-100 bg-indigo-50">
+                  <AvatarFallback className="bg-indigo-100 text-lg text-indigo-600">
                     {initials || "PM"}
                   </AvatarFallback>
                 </Avatar>
-                <div className="space-y-1 text-sm">
-                  <div className="flex items-center gap-2 text-slate-300">
-                    <ShieldCheck className="h-4 w-4" />
+                <div className="space-y-1 text-sm text-slate-600">
+                  <div className="flex items-center gap-2 text-slate-700">
+                    <ShieldCheck className="h-4 w-4 text-emerald-500" />
                     <span className="capitalize">{currentUser.role || "viewer"}</span>
                   </div>
-                  <p className="text-xs text-slate-500">Authenticated and synced </p>
+                  <p className="text-xs text-slate-500">Authenticated and synced</p>
                 </div>
               </CardContent>
               <CardFooter className="mt-4 flex flex-wrap gap-2">
                 {currentUser.role === "admin" && (
                   <Button
                     variant="outline"
-                    className="border-white/20 bg-white/10 text-slate-100 hover:bg-white/20"
+                    className="border-slate-200 bg-white text-indigo-600 hover:bg-indigo-50"
                     onClick={() => navigate("/admin")}
                     data-testid="admin-dashboard-btn"
                   >
-                    Command Center
+                    Command Centre
                   </Button>
                 )}
                 <Button
                   variant="destructive"
-                  className="bg-rose-500 hover:bg-rose-600"
+                  className="bg-rose-400 hover:bg-rose-500"
                   onClick={handleLogout}
                   data-testid="logout-btn"
                 >
@@ -200,43 +199,43 @@ const ProjectsList = () => {
 
         <section className="space-y-6">
           {success && (
-            <Alert className="border-emerald-500/40 bg-emerald-500/15 text-emerald-100">
+            <Alert className="border border-emerald-200 bg-emerald-50 text-emerald-700">
               <AlertTitle>Success</AlertTitle>
               <AlertDescription>{success}</AlertDescription>
             </Alert>
           )}
           {error && (
-            <Alert variant="destructive" className="border-red-500/60 bg-red-500/15 text-red-100">
+            <Alert variant="destructive" className="border border-red-200 bg-red-50 text-red-700">
               <AlertTitle>Something went wrong</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
 
-          <Card className="border-white/10 bg-slate-900/80 text-white shadow-2xl">
+          <Card className="border-slate-200 bg-white text-slate-800 shadow-xl">
             <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <CardTitle className="text-2xl font-semibold">Plan Dashboard</CardTitle>
-                <CardDescription className="text-slate-400">
+                <CardTitle className="text-2xl font-semibold text-slate-900">Plan Dashboard</CardTitle>
+                <CardDescription className="text-slate-500">
                   Filter, launch, or revisit any project.
                 </CardDescription>
               </div>
               {isEditor && (
                 <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                   <DialogTrigger asChild>
-                    <Button className="bg-indigo-500 hover:bg-indigo-600" data-testid="create-project-btn">
+                    <Button className="bg-indigo-500 hover:bg-indigo-600 text-white" data-testid="create-project-btn">
                       <Plus className="mr-2 h-4 w-4" /> Add Project
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="border border-white/10 bg-slate-950/90 text-white">
+                  <DialogContent className="border border-slate-200 bg-white text-slate-700">
                     <DialogHeader>
-                      <DialogTitle>Add Project</DialogTitle>
-                      <DialogDescription className="text-slate-400">
+                      <DialogTitle className="text-slate-900">Add Project</DialogTitle>
+                      <DialogDescription className="text-slate-500">
                         Give your project a name and optional briefing .
                       </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handleCreateProject} className="space-y-4">
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-200" htmlFor="project-name">
+                        <label className="text-sm font-medium text-slate-600" htmlFor="project-name">
                           Project name
                         </label>
                         <Input
@@ -247,11 +246,11 @@ const ProjectsList = () => {
                             setFormData((prev) => ({ ...prev, name: event.target.value }))
                           }
                           placeholder="Enter Project Name"
-                          className="border-white/20 bg-slate-900/80 text-white placeholder:text-slate-500"
+                          className="border-slate-200 bg-white text-slate-900 placeholder:text-slate-400"
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-200" htmlFor="project-description">
+                        <label className="text-sm font-medium text-slate-600" htmlFor="project-description">
                           Mission briefing (optional)
                         </label>
                         <textarea
@@ -261,19 +260,19 @@ const ProjectsList = () => {
                             setFormData((prev) => ({ ...prev, description: event.target.value }))
                           }
                           placeholder="Enter Description."
-                          className="min-h-[120px] w-full rounded-md border border-white/20 bg-slate-900/80 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                          className="min-h-[120px] w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
                         />
                       </div>
                       <DialogFooter className="sm:justify-between">
                         <Button
                           type="button"
                           variant="ghost"
-                          className="text-slate-300 hover:bg-white/10"
+                          className="text-slate-500 hover:bg-slate-100"
                           onClick={() => setDialogOpen(false)}
                         >
                           Cancel
                         </Button>
-                        <Button type="submit" className="bg-indigo-500 hover:bg-indigo-600">
+                        <Button type="submit" className="bg-indigo-500 text-white hover:bg-indigo-600">
                           <Plus className="mr-2 h-4 w-4" />
                           Add Project
                         </Button>
@@ -291,25 +290,25 @@ const ProjectsList = () => {
                     onChange={(event) => setSearchTerm(event.target.value)}
                     placeholder="Search for projects"
                     data-testid="search-projects"
-                    className="border-white/10 bg-slate-900/70 pl-11 text-white placeholder:text-slate-500"
+                    className="border-slate-200 bg-white pl-11 text-slate-700 placeholder:text-slate-400"
                   />
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-indigo-300" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 </div>
-                <Badge className="bg-indigo-500/20 text-indigo-100">
+                <Badge className="bg-indigo-100 text-indigo-600">
                   {filteredProjects.length} project{filteredProjects.length === 1 ? "" : "s"} in view
                 </Badge>
               </div>
-              <Separator className="border-white/10" />
+              <Separator className="border-slate-200" />
 
               {loading ? (
-                <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 text-slate-300">
-                  <Sparkles className="h-6 w-6 animate-spin text-indigo-300" />
+                <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 text-slate-500">
+                  <Sparkles className="h-6 w-6 animate-spin text-indigo-400" />
                   <p className="text-sm">Fetching mission telemetry...</p>
                 </div>
               ) : filteredProjects.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-white/20 bg-white/5 p-10 text-center text-slate-300">
-                  <p className="text-lg font-semibold">No missions detected</p>
-                  <p className="mt-2 text-sm text-slate-400">
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-white/80 p-10 text-center text-slate-500">
+                  <p className="text-lg font-semibold text-slate-700">No missions detected</p>
+                  <p className="mt-2 text-sm text-slate-500">
                     {searchTerm
                       ? "Try a different search query or clear your filters."
                       : "Launch your first project to light up the dashboard."}
@@ -321,33 +320,33 @@ const ProjectsList = () => {
                     {filteredProjects.map((project) => (
                       <Card
                         key={project.id}
-                        className="group flex cursor-pointer flex-col justify-between border-white/10 bg-slate-950/70 text-white transition duration-200 hover:border-indigo-400/60 hover:bg-slate-900/80"
+                        className="group flex cursor-pointer flex-col justify-between border-slate-200 bg-white text-slate-800 transition duration-200 hover:border-indigo-200 hover:bg-indigo-50/40"
                         onClick={() => navigate(`/projects/${project.id}`)}
                         data-testid={`project-card-${project.id}`}
                       >
                         <CardHeader>
                           <div className="flex items-start justify-between gap-2">
                             <div>
-                              <CardTitle className="text-xl font-semibold text-white group-hover:text-indigo-200">
+                              <CardTitle className="text-xl font-semibold text-slate-900 group-hover:text-indigo-600">
                                 {project.name}
                               </CardTitle>
-                              <CardDescription className="mt-2 text-sm text-slate-400">
+                              <CardDescription className="mt-2 text-sm text-slate-500">
                                 {project.description || "No briefing supplied yet."}
                               </CardDescription>
                             </div>
-                            <Badge variant="secondary" className="bg-white/10 text-indigo-100">
+                            <Badge variant="secondary" className="bg-indigo-50 text-indigo-600">
                               {new Date(project.created_at).toLocaleDateString()}
                             </Badge>
                           </div>
                         </CardHeader>
-                        <CardFooter className="flex items-center justify-between border-t border-white/5">
+                        <CardFooter className="flex items-center justify-between border-t border-slate-200">
                           <span className="text-xs uppercase tracking-wide text-slate-500">
                             PID: {project.id.split("-")[0]}
                           </span>
                           {isEditor && (
                             <Button
                               variant="ghost"
-                              className="text-rose-300 hover:bg-rose-500/10 hover:text-rose-200"
+                              className="text-rose-500 hover:bg-rose-100"
                               onClick={(event) => {
                                 event.stopPropagation();
                                 handleDeleteProject(project.id);

@@ -15,6 +15,7 @@ import M10OpportunityManagement from "../components/sections/M10OpportunityManag
 import M11ConfigurationManagement from "../components/sections/M11ConfigurationManagement";
 import M12Deliverables from "../components/sections/M12Deliverables";
 import M13SupplierAgreement from "../components/sections/M13SupplierAgreement";
+import SectionHeading from "../components/SectionHeading";
 
 const ProjectDetail = () => {
   const { projectId } = useParams();
@@ -120,12 +121,19 @@ const ProjectDetail = () => {
           </div>
 
           <div className="tab-content">
+            <SectionHeading
+              title={sections.find((s) => s.id === activeTab)?.name || "Section"}
+              infoText="Info"
+              className="mb-6"
+              headingProps={{ "data-testid": "section-heading" }}
+              as="h2"
+            />
             {ActiveSectionComponent && (
               <ActiveSectionComponent
                 projectId={projectId}
                 isEditor={isEditor}
                 sectionId={activeTab}
-                sectionName={sections.find(s => s.id === activeTab)?.name}
+                sectionName={sections.find((s) => s.id === activeTab)?.name}
               />
             )}
           </div>
