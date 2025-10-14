@@ -1003,6 +1003,10 @@ class UserCreate(BaseModel):
     role: str
 
 
+class UserRoleUpdate(BaseModel):
+    role: str
+
+
 class UserInDB(UserProfile):
     password_hash: str
 
@@ -1477,6 +1481,23 @@ async def get_all_users(
 ) -> List[UserProfile]:
     result = await session.execute(select(UserTable))
     return [to_schema(UserProfile, row) for row in result.scalars().all()]
+
+
+@api_router.patch("/users/{user_id}/role", response_model=UserProfile)
+async def update_user_role(
+    user_id: str,
+    payload: UserRoleUpdate,
+    _: UserProfile = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> UserProfile:
+    user = await fetch_user_by_id(session, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.role = payload.role
+    await session.commit()
+    await session.refresh(user)
+    return to_schema(UserProfile, user)
 
 
 @api_router.delete("/users/{user_id}")
