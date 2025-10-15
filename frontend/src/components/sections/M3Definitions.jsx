@@ -118,31 +118,46 @@ const M3Definitions = ({ projectId, isEditor }) => {
             Reference to PIF
           </h3>
         </div>
-        <textarea
-          className="input"
-          rows="4"
-          value={singleFields.reference_to_pif}
-          onChange={(e) => setSingleFields({ ...singleFields, reference_to_pif: e.target.value })}
-          disabled={!isEditor}
-          placeholder="Enter reference to PIF..."
-          data-testid="reference-to-pif"
-        />
-        {isEditor && (
-          <button
-            className="btn btn-primary btn-sm"
-            style={{ marginTop: "0.75rem" }}
-            onClick={() => handleSaveSingleField("reference_to_pif", singleFields.reference_to_pif)}
-            data-testid="save-reference-to-pif"
+        {isEditor ? (
+          <>
+            <textarea
+              className="input"
+              rows="4"
+              value={singleFields.reference_to_pif}
+              onChange={(e) =>
+                setSingleFields({ ...singleFields, reference_to_pif: e.target.value })
+              }
+              placeholder="Enter reference to PIF..."
+              data-testid="reference-to-pif"
+            />
+            <button
+              className="btn btn-primary btn-sm"
+              style={{ marginTop: "0.75rem" }}
+              onClick={() =>
+                handleSaveSingleField("reference_to_pif", singleFields.reference_to_pif)
+              }
+              data-testid="save-reference-to-pif"
+            >
+              Save
+            </button>
+          </>
+        ) : (
+          <p
+            className={`single-entry-viewer-content${
+              singleFields.reference_to_pif?.trim() ? "" : " is-empty"
+            }`}
           >
-            Save
-          </button>
+            {singleFields.reference_to_pif?.trim()
+              ? singleFields.reference_to_pif
+              : "No reference to PIF provided yet."}
+          </p>
         )}
       </div>
 
       <div className="card" style={{ background: "#f7fafc", padding: "1.5rem" }}>
         <div className="flex justify-between items-center mb-4">
           <h3 style={{ fontSize: "1.1rem", fontWeight: "600" }}>
-            Reference for Other Plans
+            Reference to Other Resources
           </h3>
         </div>
         <div className="info-card">
@@ -152,24 +167,42 @@ const M3Definitions = ({ projectId, isEditor }) => {
             <li>Reference of Development Interface Agreement document</li>
           </ol>
         </div>
-        <textarea
-          className="input"
-          rows="4"
-          value={singleFields.plan_for_other_resources}
-          onChange={(e) => setSingleFields({ ...singleFields, plan_for_other_resources: e.target.value })}
-          disabled={!isEditor}
-          placeholder="Enter reference to other plans..."
-          data-testid="plan-for-other-resources"
-        />
-        {isEditor && (
-          <button
-            className="btn btn-primary btn-sm"
-            style={{ marginTop: "0.75rem" }}
-            onClick={() => handleSaveSingleField("plan_for_other_resources", singleFields.plan_for_other_resources)}
-            data-testid="save-plan-for-other-resources"
+        {isEditor ? (
+          <>
+            <textarea
+              className="input"
+              rows="4"
+              value={singleFields.plan_for_other_resources}
+              onChange={(e) =>
+                setSingleFields({ ...singleFields, plan_for_other_resources: e.target.value })
+              }
+              placeholder="Enter reference to other resources..."
+              data-testid="plan-for-other-resources"
+            />
+            <button
+              className="btn btn-primary btn-sm"
+              style={{ marginTop: "0.75rem" }}
+              onClick={() =>
+                handleSaveSingleField(
+                  "plan_for_other_resources",
+                  singleFields.plan_for_other_resources
+                )
+              }
+              data-testid="save-plan-for-other-resources"
+            >
+              Save
+            </button>
+          </>
+        ) : (
+          <p
+            className={`single-entry-viewer-content${
+              singleFields.plan_for_other_resources?.trim() ? "" : " is-empty"
+            }`}
           >
-            Save
-          </button>
+            {singleFields.plan_for_other_resources?.trim()
+              ? singleFields.plan_for_other_resources
+              : "No reference to other resources provided yet."}
+          </p>
         )}
       </div>
 
@@ -186,24 +219,45 @@ const M3Definitions = ({ projectId, isEditor }) => {
             <li>&lt;Link/location to control chart workbook&gt;</li>
           </ul>
         </div>
-        <textarea
-          className="input"
-          rows="4"
-          value={singleFields.reference_to_other_documents}
-          onChange={(e) => setSingleFields({ ...singleFields, reference_to_other_documents: e.target.value })}
-          disabled={!isEditor}
-          placeholder="Enter reference to other documents..."
-          data-testid="reference-to-other-docs"
-        />
-        {isEditor && (
-          <button
-            className="btn btn-primary btn-sm"
-            style={{ marginTop: "0.75rem" }}
-            onClick={() => handleSaveSingleField("reference_to_other_documents", singleFields.reference_to_other_documents)}
-            data-testid="save-reference-to-other-docs"
+        {isEditor ? (
+          <>
+            <textarea
+              className="input"
+              rows="4"
+              value={singleFields.reference_to_other_documents}
+              onChange={(e) =>
+                setSingleFields({
+                  ...singleFields,
+                  reference_to_other_documents: e.target.value
+                })
+              }
+              placeholder="Enter reference to other documents..."
+              data-testid="reference-to-other-docs"
+            />
+            <button
+              className="btn btn-primary btn-sm"
+              style={{ marginTop: "0.75rem" }}
+              onClick={() =>
+                handleSaveSingleField(
+                  "reference_to_other_documents",
+                  singleFields.reference_to_other_documents
+                )
+              }
+              data-testid="save-reference-to-other-docs"
+            >
+              Save
+            </button>
+          </>
+        ) : (
+          <p
+            className={`single-entry-viewer-content${
+              singleFields.reference_to_other_documents?.trim() ? "" : " is-empty"
+            }`}
           >
-            Save
-          </button>
+            {singleFields.reference_to_other_documents?.trim()
+              ? singleFields.reference_to_other_documents
+              : "No reference to other documents provided yet."}
+          </p>
         )}
       </div>
 
