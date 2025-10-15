@@ -18,6 +18,72 @@ body {
   min-height: 100vh;
 }
 
+.global-search-shell {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  padding: 1rem 1.5rem;
+  background: linear-gradient(180deg, rgba(248, 250, 255, 0.95) 0%, rgba(240, 249, 255, 0.92) 100%);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+  backdrop-filter: blur(10px);
+}
+
+.global-search-container {
+  max-width: 960px;
+  margin: 0 auto;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 1rem 0.65rem 2.75rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.08);
+}
+
+.global-search-icon {
+  position: absolute;
+  left: 1.2rem;
+  color: #475569;
+}
+
+.global-search-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #1e293b;
+  font-size: 0.95rem;
+}
+
+.global-search-input::placeholder {
+  color: #94a3b8;
+}
+
+.global-search-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: none;
+  background: transparent;
+  color: #475569;
+  font-size: 0.85rem;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.global-search-clear.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.global-search-clear:hover {
+  color: #4338ca;
+}
+
 /* Common Styles */
 .page-container {
   min-height: 100vh;
@@ -293,59 +359,100 @@ body {
   color: #1565c0;
 }
 
-.section-heading {
-  margin-bottom: 1.5rem;
-}
-
-.section-heading-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.section-heading-title {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.section-heading-info-trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 50%;
-  border: 1px solid rgba(79, 70, 229, 0.3);
-  background: rgba(79, 70, 229, 0.08);
-  color: #4338ca;
-  cursor: pointer;
-  transition: background 0.2s ease, transform 0.2s ease;
-}
-
-.section-heading-info-trigger:hover {
-  background: rgba(79, 70, 229, 0.18);
-  transform: translateY(-1px);
-}
-
-.section-heading-info {
-  margin-top: 0.75rem;
-  background: #eef2ff;
-  border-radius: 12px;
-  padding: 0.75rem 1rem;
-  color: #4338ca;
-  font-size: 0.9rem;
-  border: 1px solid rgba(79, 70, 229, 0.18);
-}
-
-.section-heading-compact {
-  margin-bottom: 0;
-}
-
 .muted-text {
   color: #64748b;
   font-size: 0.9rem;
   margin-top: 0.5rem;
+}
+
+.section-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.section-subtitle {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0;
+}
+
+.tab-content-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.search-hint {
+  font-size: 0.9rem;
+  color: #475569;
+}
+
+.global-search-status {
+  flex: 1 1 240px;
+}
+
+.search-status-active {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: #334155;
+}
+
+.clear-search-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  padding: 0.35rem 0.75rem;
+  background: transparent;
+  color: #475569;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border 0.2s ease;
+}
+
+.clear-search-button:hover {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.25);
+  color: #4338ca;
+}
+
+.table-search-message {
+  flex: 1 1 220px;
+  font-size: 0.9rem;
+  color: #334155;
+}
+
+.table-search-message .muted-text {
+  margin-top: 0;
+}
+
+.info-card {
+  margin-bottom: 1rem;
+  padding: 1rem 1.25rem;
+  border-radius: 12px;
+  background: #eef2ff;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  color: #312e81;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.info-card ol,
+.info-card ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.info-card li {
+  margin-bottom: 0.35rem;
 }
 
 .admin-page {
@@ -516,7 +623,7 @@ body {
   margin-bottom: 1.5rem;
 }
 
-.user-directory-header .section-heading {
+.user-directory-header .section-subtitle {
   flex: 1 1 240px;
 }
 
@@ -527,8 +634,8 @@ body {
   align-items: center;
 }
 
-.user-directory-actions .search-box {
-  flex: 1 1 240px;
+.user-directory-actions .muted-text {
+  margin-top: 0;
 }
 
 .role-cell {

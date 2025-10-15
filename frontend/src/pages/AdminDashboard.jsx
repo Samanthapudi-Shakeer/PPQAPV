@@ -2,16 +2,25 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { API } from "../App";
-import SectionHeading from "../components/SectionHeading";
-import {
-  ArrowDownAZ,
-  ArrowUpAZ,
-  ArrowUpDown,
-  PlusCircle,
-  Search,
-  Trash2,
-  XCircle
-} from "lucide-react";
+import { useGlobalSearch } from "../context/GlobalSearchContext";
+import { ArrowDownAZ, ArrowUpAZ, ArrowUpDown, PlusCircle, Trash2, XCircle } from "lucide-react";
+
+const ROLE_ORDER = ["viewer", "editor", "admin"];
+
+const ROLE_METADATA = {
+  viewer: {
+    label: "Viewer",
+    description: "Read-only visibility across the workspace."
+  },
+  editor: {
+    label: "Editor",
+    description: "Can update project content and collaborate with admins."
+  },
+  admin: {
+    label: "Admin",
+    description: "Full access including inviting teammates and managing roles."
+  }
+};
 
 const ROLE_ORDER = ["viewer", "editor", "admin"];
 
@@ -49,13 +58,13 @@ const AdminDashboard = () => {
   });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [userSearch, setUserSearch] = useState("");
   const [userSort, setUserSort] = useState({ key: "username", direction: "asc" });
   const [draggedUserId, setDraggedUserId] = useState(null);
   const [dropTargetRole, setDropTargetRole] = useState(null);
   const [updatingUserIds, setUpdatingUserIds] = useState({});
   const navigate = useNavigate();
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+  const { searchTerm, setSearchTerm } = useGlobalSearch();
 
   useEffect(() => {
     fetchUsers();
@@ -105,6 +114,7 @@ const AdminDashboard = () => {
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    setSearchTerm("");
     navigate("/login");
   };
 
@@ -121,16 +131,19 @@ const AdminDashboard = () => {
     });
   };
 
-  const userTableData = useMemo(() => {
-    const searchLower = userSearch.trim().toLowerCase();
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const hasSearch = Boolean(normalizedSearch);
 
-    const filtered = users.filter((user) => {
-      if (!searchLower) return true;
+  const filteredUsers = useMemo(() => {
+    if (!normalizedSearch) {
+      return users;
+    }
 
-      return USER_COLUMNS.some((column) => {
+    return users.filter((user) =>
+      USER_COLUMNS.some((column) => {
         if (column.key === "created_at") {
           const dateText = new Date(user.created_at).toLocaleDateString();
-          return dateText.toLowerCase().includes(searchLower);
+          return dateText.toLowerCase().includes(normalizedSearch);
         }
 
         const value = user[column.key];
@@ -138,18 +151,20 @@ const AdminDashboard = () => {
           return false;
         }
 
-        return String(value).toLowerCase().includes(searchLower);
-      });
-    });
+        return String(value).toLowerCase().includes(normalizedSearch);
+      })
+    );
+  }, [normalizedSearch, users]);
 
+  const userTableData = useMemo(() => {
     const { key, direction } = userSort;
     if (!key) {
-      return filtered;
+      return filteredUsers;
     }
 
     const multiplier = direction === "asc" ? 1 : -1;
 
-    return [...filtered].sort((a, b) => {
+    return [...filteredUsers].sort((a, b) => {
       let aValue = a[key];
       let bValue = b[key];
 
@@ -172,7 +187,92 @@ const AdminDashboard = () => {
       if (aString > bString) return 1 * multiplier;
       return 0;
     });
-  }, [userSearch, userSort, users]);
+  }, [filteredUsers, userSort]);
+
+  const groupedUsers = useMemo(() => {
+    return ROLE_ORDER.reduce((acc, role) => {
+      acc[role] = filteredUsers.filter((user) => user.role === role);
+      return acc;
+    }, {});
+  }, [filteredUsers]);
+
+  const isOwnAccount = (userId) => userId === currentUser.id;
+
+  const isUpdating = (userId) => Boolean(updatingUserIds[userId]);
+
+  const handleRoleUpdate = async (userId, nextRole) => {
+    const targetUser = users.find((item) => item.id === userId);
+    if (!targetUser || targetUser.role === nextRole) {
+      return;
+    }
+
+    if (isOwnAccount(userId) && nextRole !== "admin") {
+      setError("You cannot downgrade your own admin access.");
+      return;
+    }
+
+    setError("");
+    setSuccess("");
+    setUpdatingUserIds((prev) => ({ ...prev, [userId]: true }));
+
+    try {
+      await axios.patch(`${API}/users/${userId}/role`, { role: nextRole });
+      setUsers((prev) =>
+        prev.map((user) => (user.id === userId ? { ...user, role: nextRole } : user))
+      );
+      setSuccess(`Updated role to ${ROLE_METADATA[nextRole].label}.`);
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to update role");
+    } finally {
+      setUpdatingUserIds((prev) => {
+        const next = { ...prev };
+        delete next[userId];
+        return next;
+      });
+    }
+  };
+
+  const handleDragStart = (event, userId) => {
+    if (isOwnAccount(userId)) {
+      return;
+    }
+    setDraggedUserId(userId);
+    event.dataTransfer.setData("text/plain", userId);
+    event.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragEnd = () => {
+    setDraggedUserId(null);
+    setDropTargetRole(null);
+  };
+
+  const handleDragOver = (event) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDragEnter = (role) => {
+    setDropTargetRole(role);
+  };
+
+  const handleDragLeave = (event) => {
+    if (!event.currentTarget.contains(event.relatedTarget)) {
+      setDropTargetRole(null);
+    }
+  };
+
+  const handleDrop = async (event, role) => {
+    event.preventDefault();
+    setDropTargetRole(null);
+    const droppedId = event.dataTransfer.getData("text/plain") || draggedUserId;
+    if (!droppedId) {
+      return;
+    }
+
+    await handleRoleUpdate(droppedId, role);
+    setDraggedUserId(null);
+  };
 
   const groupedUsers = useMemo(() => {
     return ROLE_ORDER.reduce((acc, role) => {
@@ -285,7 +385,7 @@ const AdminDashboard = () => {
         {error && <div className="error-message">{error}</div>}
 
         <section className="card role-centre">
-          <SectionHeading title="Role Command Centre" infoText="Info" className="mb-3" as="h2" />
+          <h2 className="section-title">Role Command Centre</h2>
           <p className="muted-text">Drag and drop teammates between role lanes to update their access instantly.</p>
           <div className="role-kanban" role="list">
             {ROLE_ORDER.map((role) => (
@@ -322,7 +422,9 @@ const AdminDashboard = () => {
                       </div>
                     ))
                   ) : (
-                    <div className="role-column-empty">Drop a user here</div>
+                    <div className="role-column-empty">
+                      {hasSearch ? "No matches for this role" : "Drop a user here"}
+                    </div>
                   )}
                 </div>
               </div>
@@ -332,19 +434,21 @@ const AdminDashboard = () => {
 
         <section className="card">
           <div className="user-directory-header">
-            <SectionHeading title="User Directory" infoText="Info" className="section-heading-compact" as="h3" />
+            <h3 className="section-subtitle">User Directory</h3>
             <div className="user-directory-actions">
-              <div className="search-box">
-                <Search aria-hidden="true" className="search-icon" size={18} />
-                <input
-                  type="text"
-                  className="search-input"
-                  placeholder="Search users..."
-                  value={userSearch}
-                  onChange={(e) => setUserSearch(e.target.value)}
-                  data-testid="user-table-search"
-                />
-              </div>
+              {searchTerm ? (
+                <button
+                  type="button"
+                  className="clear-search-button"
+                  onClick={() => setSearchTerm("")}
+                  data-testid="clear-user-search"
+                >
+                  <XCircle size={16} aria-hidden="true" />
+                  <span>Clear global search</span>
+                </button>
+              ) : (
+                <span className="muted-text">Use the global search above to filter users.</span>
+              )}
               <button
                 className="btn btn-primary"
                 onClick={() => setShowModal(true)}

@@ -5,15 +5,13 @@ import {
   Rocket,
   Sparkles,
   Trash2,
-  TrendingUp,
   LogOut,
   ShieldCheck,
-  FireExtinguisher,
-  SearchXIcon,
-  Search,
+  XCircle
 } from "lucide-react";
 import axios from "axios";
 import { API } from "../App";
+import { useGlobalSearch } from "../context/GlobalSearchContext";
 import { Button } from "components/ui/button";
 import {
   Card,
@@ -46,8 +44,8 @@ const ProjectsList = () => {
   const [formData, setFormData] = useState({ name: "", description: "" });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
   const navigate = useNavigate();
+  const { searchTerm, setSearchTerm } = useGlobalSearch();
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const isEditor = ["admin", "editor"].includes(currentUser.role);
   const initials = (currentUser.username || "Planner")
@@ -112,16 +110,19 @@ const ProjectsList = () => {
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    setSearchTerm("");
     navigate("/login");
   };
+
+  const normalizedSearch = searchTerm.trim().toLowerCase();
 
   const filteredProjects = useMemo(
     () =>
       projects.filter((project) => {
         const haystack = `${project.name} ${project.description || ""}`.toLowerCase();
-        return haystack.includes(searchTerm.toLowerCase());
+        return haystack.includes(normalizedSearch);
       }),
-    [projects, searchTerm]
+    [normalizedSearch, projects]
   );
 
   return (
@@ -284,15 +285,25 @@ const ProjectsList = () => {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div className="relative w-full max-w-md">
-                  <Input
-                    value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
-                    placeholder="Search for projects"
-                    data-testid="search-projects"
-                    className="border-slate-200 bg-white pl-11 text-slate-700 placeholder:text-slate-400"
-                  />
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <div className="global-search-status">
+                  {searchTerm ? (
+                    <div className="search-status-active">
+                      <span>
+                        Filtering projects for <strong>"{searchTerm}"</strong>
+                      </span>
+                      <button
+                        type="button"
+                        className="clear-search-button"
+                        onClick={() => setSearchTerm("")}
+                        data-testid="clear-project-search"
+                      >
+                        <XCircle size={16} aria-hidden="true" />
+                        <span>Clear global search</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="muted-text">Use the global search above to find specific initiatives.</p>
+                  )}
                 </div>
                 <Badge className="bg-indigo-100 text-indigo-600">
                   {filteredProjects.length} project{filteredProjects.length === 1 ? "" : "s"} in view
