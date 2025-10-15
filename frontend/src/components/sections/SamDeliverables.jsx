@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import { Pencil, Trash2 } from "lucide-react";
 import { API } from "../../App";
 
 const defaultWorkProducts = [
@@ -189,7 +190,7 @@ const SamDeliverables = ({ projectId, isEditor }) => {
         </div>
       )}
 
-      <div className="table-container" style={{ overflowX: "auto" }}>
+      <div className="table-container">
         <table className="data-table">
           <thead>
             <tr>
@@ -361,19 +362,21 @@ const SamDeliverables = ({ projectId, isEditor }) => {
                       ) : (
                         <div style={{ display: "flex", gap: "0.5rem" }}>
                           <button
-                            className="btn btn-primary btn-sm"
+                            className="btn btn-outline btn-icon"
                             onClick={() => {
                               setEditingId(deliverable.id);
                               setEditData(deliverable);
                             }}
+                            aria-label={`Edit deliverable ${deliverable.work_product || deliverable.sl_no}`}
                           >
-                            Edit
+                            <Pencil size={16} aria-hidden="true" />
                           </button>
                           <button
-                            className="btn btn-danger btn-sm"
+                            className="btn btn-danger btn-icon"
                             onClick={() => handleDeleteDeliverable(deliverable.id)}
+                            aria-label={`Delete deliverable ${deliverable.work_product || deliverable.sl_no}`}
                           >
-                            Delete
+                            <Trash2 size={16} aria-hidden="true" />
                           </button>
                         </div>
                       )}

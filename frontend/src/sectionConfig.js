@@ -482,7 +482,12 @@ export const SECTION_CONFIG = {
         label: "Configuration Management Tools",
         description: "List the configuration management tools and repositories used."
       },
-      { field: "location_of_ci", label: "Location of CI" },
+      {
+        field: "location_of_ci",
+        label: "Location of CI",
+        supportsImage: true,
+        description: "Upload diagrams or photos that show where configuration items are stored."
+      },
       { field: "versioning", label: "Versioning" },
       { field: "baselining", label: "Baselining" },
       { field: "change_management_plan", label: "Change Management Plan" },
