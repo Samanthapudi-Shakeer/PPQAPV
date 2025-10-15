@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { API } from "../App";
+import { useGlobalSearch } from "../context/GlobalSearchContext";
 import M1RevisionHistory from "../components/sections/M1RevisionHistory";
 import M2TOC from "../components/sections/M2TOC";
 import M3Definitions from "../components/sections/M3Definitions";
@@ -25,6 +26,7 @@ const ProjectDetail = () => {
   const [error, setError] = useState("");
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const isEditor = ["admin", "editor"].includes(currentUser.role);
+  const { searchTerm } = useGlobalSearch();
 
   useEffect(() => {
     fetchProject();
@@ -120,12 +122,22 @@ const ProjectDetail = () => {
           </div>
 
           <div className="tab-content">
+            <div className="tab-content-header">
+              <h2 className="section-title" data-testid="section-heading">
+                {sections.find((s) => s.id === activeTab)?.name || "Section"}
+              </h2>
+              {searchTerm && (
+                <p className="search-hint">
+                  Filtering section content for <strong>"{searchTerm}"</strong>
+                </p>
+              )}
+            </div>
             {ActiveSectionComponent && (
               <ActiveSectionComponent
                 projectId={projectId}
                 isEditor={isEditor}
                 sectionId={activeTab}
-                sectionName={sections.find(s => s.id === activeTab)?.name}
+                sectionName={sections.find((s) => s.id === activeTab)?.name}
               />
             )}
           </div>

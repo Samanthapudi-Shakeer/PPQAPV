@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { InfoIcon, UndoDot } from "lucide-react";
 import { API } from "../../App";
 import DataTable from "../DataTable";
 
@@ -10,11 +9,6 @@ const M3Definitions = ({ projectId, isEditor }) => {
     reference_to_pif: "",
     reference_to_other_documents: "",
     plan_for_other_resources: ""
-  });
-  const [showInfo, setShowInfo] = useState({
-    pif: false,
-    otherDocs: false,
-    otherResources: false,
   });
   const [loading, setLoading] = useState(true);
 
@@ -104,14 +98,9 @@ const M3Definitions = ({ projectId, isEditor }) => {
         <h3 style={{ fontSize: "1.2rem", fontWeight: "600", marginBottom: "1rem" }}>
           Definitions & Acronyms
         </h3>
-        <button onClick={() => setShowInfo(prev => ({ ...prev, pif: !prev.pif }))} className="px-3 py-1 bg-blue-500 rounded hover:bg-blue-600 text-sm">
-            {showInfo.pif ? <UndoDot /> : <InfoIcon />}
-          </button>
-          {showInfo.pif && (
-          <div className="mb-4 p-3 border rounded bg-gray-50">
-            	Definitions of all terms, acronyms and abbreviations required to properly interpret this plan to be stated here				
-          </div>
-        )}
+        <p className="muted-text" style={{ marginBottom: "1rem" }}>
+          Definitions of all terms, acronyms, and abbreviations required to properly interpret this plan.
+        </p>
         <DataTable
           columns={definitionColumns}
           data={definitions}
@@ -155,19 +144,14 @@ const M3Definitions = ({ projectId, isEditor }) => {
           <h3 style={{ fontSize: "1.1rem", fontWeight: "600" }}>
             Reference for Other Plans
           </h3>
-          <button onClick={() => setShowInfo(prev => ({ ...prev, otherResources: !prev.otherResources }))} className="px-3 py-1 bg-blue-500 rounded hover:bg-blue-600 text-sm">
-            {showInfo.otherResources ? <UndoDot /> : <InfoIcon />}
-          </button>
         </div>
-        {showInfo.otherResources && (
-          <div className="mb-4 p-3 border rounded bg-gray-50">
-            <ol>
-	<li>Link/location to MPP or other Scheduling and tracking mechanism</li>	
-	<li>Link/Location for Test Plans</li>
-	<li>Reference of Development Interface Agreement document</li>
-  </ol>				
-          </div>
-        )}
+        <div className="info-card">
+          <ol>
+            <li>Link/location to MPP or other scheduling and tracking mechanisms</li>
+            <li>Link/location for test plans</li>
+            <li>Reference of Development Interface Agreement document</li>
+          </ol>
+        </div>
         <textarea
           className="input"
           rows="4"
@@ -194,20 +178,14 @@ const M3Definitions = ({ projectId, isEditor }) => {
           <h3 style={{ fontSize: "1.1rem", fontWeight: "600" }}>
             Reference to Other Documents
           </h3>
-          <button onClick={() => setShowInfo(prev => ({ ...prev, otherDocs: !prev.otherDocs }))} className="px-3 py-1 bg-blue-500 rounded hover:bg-blue-600 text-sm">
-            {showInfo.otherDocs ? <UndoDot /> : <InfoIcon />}
-          </button>
         </div>
-        {showInfo.otherDocs && (
-          <div className="mb-4 p-3 border rounded bg-gray-50">
-			<ul>
-  <li>&lt;Link/Location to additional roles and responsibilities document&gt;</li>
-  <li>&lt;Link/Location to Process performance model workbook&gt;</li>
-  <li>&lt;Link/Location to Control chart workbook&gt;</li>
-</ul>
-
-          </div>
-        )}
+        <div className="info-card">
+          <ul>
+            <li>&lt;Link/location to additional roles and responsibilities document&gt;</li>
+            <li>&lt;Link/location to process performance model workbook&gt;</li>
+            <li>&lt;Link/location to control chart workbook&gt;</li>
+          </ul>
+        </div>
         <textarea
           className="input"
           rows="4"
