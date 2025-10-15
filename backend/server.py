@@ -3,19 +3,22 @@ from __future__ import annotations
 import asyncio
 import base64
 import hmac
+import json
 import logging
 import os
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
+from io import BytesIO
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence, Tuple, Type, TypeVar
+from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence, Set, Tuple, Type, TypeVar
 
 from hashlib import pbkdf2_hmac
 from jose import ExpiredSignatureError, JWTError, jwt as PyJWT
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
+from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
@@ -34,6 +37,10 @@ from sqlalchemy import (
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from starlette.middleware.cors import CORSMiddleware
+
+from openpyxl import Workbook
+from openpyxl.drawing.image import Image as XLImage
+from openpyxl.utils import get_column_letter
 
 app = FastAPI()
 
@@ -1036,6 +1043,89 @@ for section_definition in SECTION_TABLE_DEFINITIONS:
             columns=[column.name for column in section_definition.columns],
         )
     )
+
+
+INVALID_SHEET_TITLE_CHARS = set("[]:*?/\\")
+MAX_SHEET_TITLE_LENGTH = 31
+EXPORT_COLUMN_EXCLUDES = {"id", "project_id"}
+
+
+def make_sheet_title(base_title: str, used_titles: Set[str]) -> str:
+    sanitized = "".join(
+        "-" if char in INVALID_SHEET_TITLE_CHARS else char for char in base_title
+    ).strip()
+    if not sanitized:
+        sanitized = "Sheet"
+    truncated = sanitized[:MAX_SHEET_TITLE_LENGTH]
+    candidate = truncated or "Sheet"
+    counter = 1
+    while candidate in used_titles:
+        suffix = f"_{counter}"
+        candidate = f"{truncated[:MAX_SHEET_TITLE_LENGTH - len(suffix)]}{suffix}"
+        counter += 1
+    used_titles.add(candidate)
+    return candidate
+
+
+def friendly_header(column_name: str) -> str:
+    return column_name.replace("_", " ").title()
+
+
+def format_cell_value(value: Any) -> Any:
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False)
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return value
+
+
+def decode_image_for_workbook(image_data: str) -> Optional[Tuple[XLImage, BytesIO]]:
+    if not image_data:
+        return None
+    try:
+        base64_data = image_data.split(",", 1)[1] if "," in image_data else image_data
+        binary = base64.b64decode(base64_data)
+    except Exception:
+        return None
+
+    buffer = BytesIO(binary)
+    buffer.seek(0)
+    try:
+        image = XLImage(buffer)
+    except Exception:
+        return None
+
+    max_width = 480
+    max_height = 320
+    width = getattr(image, "width", None)
+    height = getattr(image, "height", None)
+    if width and height:
+        scale = min(
+            1.0,
+            max_width / float(width) if width else 1.0,
+            max_height / float(height) if height else 1.0,
+        )
+        if scale < 1.0:
+            image.width = int(width * scale)
+            image.height = int(height * scale)
+
+    return image, buffer
+
+
+EXPORT_STATIC_TABLES: Sequence[Tuple[str, Type[ProjectLinkedMixin]]] = [
+    ("Project Details", ProjectDetailsTable),
+    ("Revision History", RevisionHistoryTable),
+    ("Table Of Contents", TOCEntryTable),
+    ("Definitions & Acronyms", DefinitionAcronymTable),
+    ("Assumptions", AssumptionTable),
+    ("Constraints", ConstraintTable),
+    ("Dependencies", DependencyTable),
+    ("Stakeholders", StakeholderTable),
+    ("Deliverables", DeliverableTable),
+    ("Milestone Columns", MilestoneColumnTable),
+    ("SAM Deliverables", SamDeliverableTable),
+    ("SAM Milestone Columns", SamMilestoneColumnTable),
+]
 
 
 TABLES_TO_PURGE: List[Type[ProjectLinkedMixin]] = [
@@ -2101,6 +2191,138 @@ async def get_single_entry(
     result = await session.execute(stmt)
     row = result.scalar_one_or_none()
     return to_schema(SingleEntryField, row) if row else None
+
+
+@api_router.get("/projects/{project_id}/export/xlsx")
+async def export_project_xlsx(
+    project_id: str,
+    _: UserProfile = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    project = await session.get(ProjectTable, project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    workbook = Workbook()
+    used_titles: Set[str] = set()
+    retained_image_streams: List[BytesIO] = []
+
+    summary_sheet = workbook.active
+    summary_sheet.title = make_sheet_title("Project Summary", used_titles)
+    summary_sheet.column_dimensions["A"].width = 20
+    summary_sheet.column_dimensions["B"].width = 80
+
+    created_at = getattr(project, "created_at", None)
+    summary_rows = [
+        ("Project ID", project.id),
+        ("Project Name", project.name),
+        ("Description", project.description or ""),
+        ("Created By", project.created_by),
+        (
+            "Created At",
+            created_at.isoformat() if isinstance(created_at, datetime) else "",
+        ),
+    ]
+
+    for label, value in summary_rows:
+        summary_sheet.append([label, value])
+
+    single_entry_stmt = select(SingleEntryFieldTable).where(
+        SingleEntryFieldTable.project_id == project_id
+    )
+    single_entries = (await session.execute(single_entry_stmt)).scalars().all()
+    if single_entries:
+        single_sheet = workbook.create_sheet(
+            title=make_sheet_title("Single Entries", used_titles)
+        )
+        single_sheet.append(["Field Name", "Content", "Image"])
+        single_sheet.column_dimensions["A"].width = 32
+        single_sheet.column_dimensions["B"].width = 80
+        single_sheet.column_dimensions["C"].width = 50
+
+        row_index = 2
+        for entry in sorted(single_entries, key=lambda item: item.field_name):
+            single_sheet.cell(row=row_index, column=1, value=entry.field_name)
+            single_sheet.cell(row=row_index, column=2, value=entry.content)
+            if entry.image_data:
+                decoded = decode_image_for_workbook(entry.image_data)
+                if decoded is not None:
+                    image, buffer = decoded
+                    single_sheet.add_image(image, f"C{row_index}")
+                    retained_image_streams.append(buffer)
+                    if getattr(image, "height", None):
+                        single_sheet.row_dimensions[row_index].height = max(
+                            single_sheet.row_dimensions[row_index].height or 15,
+                            image.height * 0.75,
+                        )
+                else:
+                    single_sheet.cell(
+                        row=row_index,
+                        column=3,
+                        value="Image unavailable",
+                    )
+            row_index += 1
+
+    for sheet_title, model in EXPORT_STATIC_TABLES:
+        stmt = select(model).where(model.project_id == project_id)
+        rows = (await session.execute(stmt)).scalars().all()
+        if not rows:
+            continue
+
+        columns = [
+            column.name
+            for column in model.__table__.columns
+            if column.name not in EXPORT_COLUMN_EXCLUDES
+        ]
+        if not columns:
+            continue
+
+        sheet = workbook.create_sheet(title=make_sheet_title(sheet_title, used_titles))
+        sheet.append([friendly_header(column) for column in columns])
+
+        for idx, _ in enumerate(columns, start=1):
+            sheet.column_dimensions[get_column_letter(idx)].width = 24
+
+        for row in rows:
+            sheet.append([format_cell_value(getattr(row, column)) for column in columns])
+
+    for (section, table_name), meta in SECTION_TABLE_REGISTRY.items():
+        stmt = select(meta.model).where(meta.model.project_id == project_id)
+        rows = (await session.execute(stmt)).scalars().all()
+        if not rows:
+            continue
+
+        base_title = f"{section} {table_name.replace('_', ' ').title()}"
+        sheet = workbook.create_sheet(title=make_sheet_title(base_title, used_titles))
+        sheet.append([friendly_header(column) for column in meta.columns])
+
+        for idx, _ in enumerate(meta.columns, start=1):
+            sheet.column_dimensions[get_column_letter(idx)].width = 24
+
+        for row in rows:
+            sheet.append(
+                [format_cell_value(getattr(row, column)) for column in meta.columns]
+            )
+
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+
+    safe_name = "".join(
+        char if char.isalnum() else "_" for char in (project.name or project.id)
+    ).strip("_")
+    filename = f"{safe_name or project.id}.xlsx"
+
+    headers = {
+        "Content-Disposition": f'attachment; filename="{filename}"',
+    }
+
+    return StreamingResponse(
+        output,
+        media_type=
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers,
+    )
 
 
 @api_router.post("/projects/{project_id}/project-details", response_model=ProjectDetails)
