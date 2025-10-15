@@ -61,25 +61,6 @@ const ProjectDetail = () => {
     { id: "M13", name: "Supplier Agreement", component: M13SupplierAgreement }
   ];
 
-  if (loading) {
-    return (
-      <div className="page-container">
-        <div className="loading">Loading project...</div>
-      </div>
-    );
-  }
-
-  if (error || !project) {
-    return (
-      <div className="page-container">
-        <div className="error-message">{error || "Project not found"}</div>
-        <button className="btn btn-primary" onClick={() => navigate("/projects")}>
-          Back to Projects
-        </button>
-      </div>
-    );
-  }
-
   const ActiveSectionComponent = sections.find((s) => s.id === activeTab)?.component;
 
   const handleSingleEntryDirtyChange = useCallback((sectionId, isDirty) => {
@@ -113,6 +94,25 @@ const ProjectDetail = () => {
     },
     [activeTab, singleEntryDirtySections]
   );
+
+  if (loading) {
+    return (
+      <div className="page-container">
+        <div className="loading">Loading project...</div>
+      </div>
+    );
+  }
+
+  if (error || !project) {
+    return (
+      <div className="page-container">
+        <div className="error-message">{error || "Project not found"}</div>
+        <button className="btn btn-primary" onClick={() => navigate("/projects")}>
+          Back to Projects
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="page-container project-detail-layout">
