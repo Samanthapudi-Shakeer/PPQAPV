@@ -49,7 +49,7 @@ const SectionLayout = ({
           className="btn btn-outline btn-sm section-shell__nav-toggle"
           onClick={() => setSidebarOpen((open) => !open)}
         >
-          {isSidebarOpen ? "Close Navigation" : "Open Navigation"}
+       {isSidebarOpen ? <ArrowLeftFromLine /> : <ArrowRightFromLine />}
         </button>
         {title ? <h2 className="section-shell__title">{title}</h2> : null}
       </div>
