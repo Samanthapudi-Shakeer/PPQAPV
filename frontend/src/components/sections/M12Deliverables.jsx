@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { Pencil, Trash2 } from "lucide-react";
 import { API } from "../../App";
 
 const M12Deliverables = ({ projectId, isEditor }) => {
@@ -188,7 +189,7 @@ const M12Deliverables = ({ projectId, isEditor }) => {
         )}
       </div>
 
-      <div className="table-container" style={{ overflowX: "auto" }}>
+      <div className="table-container">
         <table className="data-table">
           <thead>
             <tr>
@@ -307,11 +308,22 @@ const M12Deliverables = ({ projectId, isEditor }) => {
                         </div>
                       ) : (
                         <div style={{ display: "flex", gap: "0.5rem" }}>
-                          <button className="btn btn-primary btn-sm" onClick={() => { setEditingId(deliv.id); setEditData({ ...deliv }); }}>
-                            Edit
+                          <button
+                            className="btn btn-outline btn-icon"
+                            onClick={() => {
+                              setEditingId(deliv.id);
+                              setEditData({ ...deliv });
+                            }}
+                            aria-label={`Edit deliverable ${deliv.work_product || deliv.sl_no}`}
+                          >
+                            <Pencil size={16} aria-hidden="true" />
                           </button>
-                          <button className="btn btn-danger btn-sm" onClick={() => handleDeleteDeliverable(deliv.id)}>
-                            Delete
+                          <button
+                            className="btn btn-danger btn-icon"
+                            onClick={() => handleDeleteDeliverable(deliv.id)}
+                            aria-label={`Delete deliverable ${deliv.work_product || deliv.sl_no}`}
+                          >
+                            <Trash2 size={16} aria-hidden="true" />
                           </button>
                         </div>
                       )}
@@ -433,8 +445,12 @@ const M12Deliverables = ({ projectId, isEditor }) => {
                 {milestoneColumns.map((col) => (
                   <div key={col.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.75rem", background: "#f7fafc", borderRadius: "8px" }}>
                     <span>{col.column_name}</span>
-                    <button className="btn btn-danger btn-sm" onClick={() => handleDeleteColumn(col.id)}>
-                      Delete
+                    <button
+                      className="btn btn-danger btn-icon"
+                      onClick={() => handleDeleteColumn(col.id)}
+                      aria-label={`Delete column ${col.column_name}`}
+                    >
+                      <Trash2 size={16} aria-hidden="true" />
                     </button>
                   </div>
                 ))}
