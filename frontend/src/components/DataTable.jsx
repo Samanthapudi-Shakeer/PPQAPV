@@ -3,6 +3,48 @@ import { ArrowDownAZ, ArrowUpAZ, ArrowUpDown, Check, Pencil, PlusCircle, Trash2,
 import { useGlobalSearch } from "../context/GlobalSearchContext";
 import ColumnVisibilityMenu from "./ColumnVisibilityMenu";
 
+const DATE_LABEL_REGEX = /\bdate\b/i;
+
+const normalizeDateInput = (value) => {
+  if (!value) return "";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toISOString().slice(0, 10);
+};
+
+const formatDateForDisplay = (value) => {
+  if (!value) return "";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "2-digit"
+  }).format(date);
+};
+
+const isDateColumn = (column) => {
+  if (!column) return false;
+
+  if (column.inputType) {
+    return column.inputType === "date";
+  }
+
+  if (column.type) {
+    return column.type === "date";
+  }
+
+  return DATE_LABEL_REGEX.test(column.label || "");
+};
+
 const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButtonText = "Add Row" }) => {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const [editingId, setEditingId] = useState(null);
@@ -17,6 +59,20 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
   );
   const { searchTerm } = useGlobalSearch();
   const normalizedSearch = searchTerm.trim().toLowerCase();
+
+  const columnLookup = useMemo(
+    () =>
+      columns.reduce((acc, column) => {
+        acc[column.key] = column;
+        return acc;
+      }, {}),
+    [columns]
+  );
+
+  const dateColumnKeys = useMemo(
+    () => columns.filter((column) => isDateColumn(column)).map((column) => column.key),
+    [columns]
+  );
 
   useEffect(() => {
     setVisibleColumns((current) => {
@@ -53,7 +109,9 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
           return false;
         }
 
-        return String(value).toLowerCase().includes(normalizedSearch);
+        const searchValue = isDateColumn(col) ? formatDateForDisplay(value) : String(value);
+
+        return searchValue.toLowerCase().includes(normalizedSearch);
       });
     });
 
@@ -65,11 +123,23 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
     const multiplier = direction === "asc" ? 1 : -1;
 
     return [...filtered].sort((a, b) => {
+      const column = columnLookup[key];
       const aValue = a[key];
       const bValue = b[key];
 
       if (aValue === null || aValue === undefined) return 1 * multiplier;
       if (bValue === null || bValue === undefined) return -1 * multiplier;
+
+      if (isDateColumn(column)) {
+        const aDate = new Date(aValue).getTime();
+        const bDate = new Date(bValue).getTime();
+
+        if (!Number.isNaN(aDate) && !Number.isNaN(bDate)) {
+          if (aDate < bDate) return -1 * multiplier;
+          if (aDate > bDate) return 1 * multiplier;
+          return 0;
+        }
+      }
 
       if (typeof aValue === "number" && typeof bValue === "number") {
         return (aValue - bValue) * multiplier;
@@ -112,12 +182,22 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
   const displayedColumns = columns.filter((column) => visibleColumns[column.key] !== false);
 
   const handleEdit = (row) => {
+    const normalizedRow = { ...row };
+    dateColumnKeys.forEach((key) => {
+      normalizedRow[key] = normalizeDateInput(row[key]);
+    });
+
     setEditingId(row.id);
-    setEditData({ ...row });
+    setEditData(normalizedRow);
   };
 
   const handleSave = () => {
-    onEdit(editingId, editData);
+    const payload = { ...editData };
+    dateColumnKeys.forEach((key) => {
+      payload[key] = normalizeDateInput(payload[key]);
+    });
+
+    onEdit(editingId, payload);
     setEditingId(null);
     setEditData({});
   };
@@ -128,7 +208,12 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
   };
 
   const handleAdd = () => {
-    onAdd(newRowData);
+    const payload = { ...newRowData };
+    dateColumnKeys.forEach((key) => {
+      payload[key] = normalizeDateInput(payload[key]);
+    });
+
+    onAdd(payload);
     setNewRowData({});
     setShowAddModal(false);
   };
@@ -228,14 +313,29 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
                     <td key={col.key} data-label={col.label}>
                       {editingId === row.id ? (
                         <input
-                          type="text"
+                          type={isDateColumn(col) ? "date" : "text"}
                           className="input"
                           style={{ padding: "0.5rem", fontSize: "0.875rem" }}
                           value={editData[col.key] ?? ""}
-                          onChange={(e) => setEditData({ ...editData, [col.key]: e.target.value })}
+                          onChange={(e) =>
+                            setEditData({ ...editData, [col.key]: e.target.value })
+                          }
                         />
                       ) : (
-                        row[col.key] ?? "-"
+                        (() => {
+                          const value = row[col.key];
+
+                          if (value === null || value === undefined || value === "") {
+                            return "-";
+                          }
+
+                          if (isDateColumn(col)) {
+                            const formatted = formatDateForDisplay(value);
+                            return formatted || "-";
+                          }
+
+                          return value;
+                        })()
                       )}
                     </td>
                   ))}
@@ -308,10 +408,12 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
                 <div className="form-group" key={col.key}>
                   <label className="label">{col.label}</label>
                   <input
-                    type="text"
+                    type={isDateColumn(col) ? "date" : "text"}
                     className="input"
                     value={newRowData[col.key] ?? ""}
-                    onChange={(e) => setNewRowData({ ...newRowData, [col.key]: e.target.value })}
+                    onChange={(e) =>
+                      setNewRowData({ ...newRowData, [col.key]: e.target.value })
+                    }
                     placeholder={`Enter ${col.label.toLowerCase()}`}
                     data-testid={`new-${col.key}`}
                   />

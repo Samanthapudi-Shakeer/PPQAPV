@@ -821,6 +821,23 @@ body {
   font-weight: 500;
 }
 
+.single-entry-view {
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  color: #2d3748;
+  min-height: 7rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.single-entry-view.is-empty {
+  color: #a0aec0;
+  font-style: italic;
+}
+
 .modal-actions {
   display: flex;
   flex-wrap: wrap;
