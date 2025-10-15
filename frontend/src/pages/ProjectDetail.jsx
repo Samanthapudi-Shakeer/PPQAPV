@@ -128,6 +128,24 @@ const ProjectDetail = () => {
     return unregister;
   }, [registerSectionNavigator, navigateWithinProject]);
 
+  const hasUnsavedChanges = useMemo(
+    () => Object.values(singleEntryDirtySections).some(Boolean),
+    [singleEntryDirtySections]
+  );
+
+  const handleBackToProjects = useCallback(() => {
+    if (hasUnsavedChanges) {
+      const confirmLeave = window.confirm(
+        "You have unsaved single-entry changes in this project. Leave without saving?"
+      );
+      if (!confirmLeave) {
+        return;
+      }
+    }
+
+    navigate("/projects");
+  }, [hasUnsavedChanges, navigate]);
+
   if (loading) {
     return (
       <div className="page-container">
