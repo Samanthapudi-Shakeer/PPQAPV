@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+import asyncio
+import base64
+import hmac
 import logging
 import os
+import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence, Tuple, Type, TypeVar
 
-from jose import jwt as PyJWT
+from hashlib import pbkdf2_hmac
+from jose import ExpiredSignatureError, JWTError, jwt as PyJWT
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -21,13 +26,19 @@ from starlette.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
+_allowed_origins = os.environ.get("CORS_ALLOW_ORIGINS", "*")
+allow_origin_list = [origin.strip() for origin in _allowed_origins.split(",") if origin.strip()]
+if "*" in allow_origin_list:
+    allow_origin_list = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=allow_origin_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+api_router = APIRouter(prefix="/api")
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
@@ -39,6 +50,75 @@ DATABASE_URL = os.environ.get(
 
 engine = create_async_engine(DATABASE_URL, echo=False, future=True)
 async_session = async_sessionmaker(engine, expire_on_commit=False)
+
+PASSWORD_HASH_ALGORITHM = "pbkdf2_sha256"
+PASSWORD_HASH_ITERATIONS = int(os.environ.get("PASSWORD_HASH_ITERATIONS", "390000"))
+
+
+def _b64encode(data: bytes) -> str:
+    return base64.b64encode(data).decode("utf-8")
+
+
+def _b64decode(data: str) -> bytes:
+    return base64.b64decode(data.encode("utf-8"))
+
+
+def hash_password(password: str) -> str:
+    if not isinstance(password, str):
+        raise ValueError("Password must be a string")
+    salt = secrets.token_bytes(16)
+    derived = pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt,
+        PASSWORD_HASH_ITERATIONS,
+    )
+    return "$".join(
+        (
+            PASSWORD_HASH_ALGORITHM,
+            str(PASSWORD_HASH_ITERATIONS),
+            _b64encode(salt),
+            _b64encode(derived),
+        )
+    )
+
+
+def is_password_hash(value: str) -> bool:
+    if not isinstance(value, str):
+        return False
+    parts = value.split("$")
+    if len(parts) != 4 or parts[0] != PASSWORD_HASH_ALGORITHM:
+        return False
+    try:
+        int(parts[1])
+        _b64decode(parts[2])
+        _b64decode(parts[3])
+    except Exception:
+        return False
+    return True
+
+
+def verify_password(password: str, stored_hash: str) -> bool:
+    if not stored_hash:
+        return False
+    if is_password_hash(stored_hash):
+        algorithm, iterations_str, salt_b64, hash_b64 = stored_hash.split("$")
+        if algorithm != PASSWORD_HASH_ALGORITHM:
+            return False
+        try:
+            iterations = int(iterations_str)
+        except ValueError:
+            return False
+        salt = _b64decode(salt_b64)
+        expected = _b64decode(hash_b64)
+        candidate = pbkdf2_hmac(
+            "sha256",
+            password.encode("utf-8"),
+            salt,
+            iterations,
+        )
+        return hmac.compare_digest(expected, candidate)
+    return password == stored_hash
 
 
 class Base(DeclarativeBase):
@@ -979,9 +1059,95 @@ def serialize_section_row(
 SECRET_KEY = os.environ.get("SECRET_KEY", "change-this-secret")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440
+SESSION_IDLE_TIMEOUT_MINUTES = int(os.environ.get("SESSION_IDLE_TIMEOUT_MINUTES", "30"))
+MAX_CONCURRENT_SESSIONS = max(100, int(os.environ.get("MAX_CONCURRENT_SESSIONS", "1000")))
 
 
 security = HTTPBearer()
+
+
+@dataclass
+class SessionInfo:
+    user_id: str
+    token: str
+    expires_at: datetime
+    last_seen: datetime
+
+
+_session_registry: Dict[str, SessionInfo] = {}
+_session_lock = asyncio.Lock()
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _idle_deadline(info: SessionInfo) -> datetime:
+    return info.last_seen + timedelta(minutes=SESSION_IDLE_TIMEOUT_MINUTES)
+
+
+async def _prune_sessions_locked(now: Optional[datetime] = None) -> None:
+    if now is None:
+        now = _utcnow()
+
+    expired_tokens = [
+        token
+        for token, info in _session_registry.items()
+        if now >= info.expires_at or now >= _idle_deadline(info)
+    ]
+    for token in expired_tokens:
+        _session_registry.pop(token, None)
+
+
+async def register_session(user_id: str, token: str, expires_at: datetime) -> None:
+    async with _session_lock:
+        now = _utcnow()
+        await _prune_sessions_locked(now)
+
+        _session_registry[token] = SessionInfo(
+            user_id=user_id,
+            token=token,
+            expires_at=expires_at,
+            last_seen=now,
+        )
+
+        if len(_session_registry) > MAX_CONCURRENT_SESSIONS:
+            # Remove the stalest session to keep capacity available.
+            stalest_token = min(
+                _session_registry.values(),
+                key=lambda info: info.last_seen,
+            ).token
+            _session_registry.pop(stalest_token, None)
+
+
+async def validate_and_touch_session(token: str, user_id: str) -> None:
+    async with _session_lock:
+        now = _utcnow()
+        await _prune_sessions_locked(now)
+
+        info = _session_registry.get(token)
+        if info is None or info.user_id != user_id:
+            raise HTTPException(status_code=401, detail="Session is no longer active")
+
+        if now >= info.expires_at or now >= _idle_deadline(info):
+            _session_registry.pop(token, None)
+            raise HTTPException(status_code=401, detail="Session has expired")
+
+        info.last_seen = now
+
+
+async def revoke_user_sessions(user_id: str) -> None:
+    async with _session_lock:
+        tokens_to_remove = [
+            token for token, info in _session_registry.items() if info.user_id == user_id
+        ]
+        for token in tokens_to_remove:
+            _session_registry.pop(token, None)
+
+
+async def revoke_session_by_token(token: str) -> None:
+    async with _session_lock:
+        _session_registry.pop(token, None)
 
 # ==================== Pydantic Schemas ====================
 
@@ -1000,6 +1166,10 @@ class UserCreate(BaseModel):
     email: EmailStr
     username: str
     password: str
+    role: str
+
+
+class UserRoleUpdate(BaseModel):
     role: str
 
 
@@ -1317,18 +1487,26 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     session: AsyncSession = Depends(get_session),
 ) -> UserProfile:
+    raw_token = credentials.credentials
     try:
-        payload = PyJWT.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: Optional[str] = payload.get("sub")
-        if user_id is None:
-            raise HTTPException(status_code=401, detail="Invalid authentication credentials")
-    except jwt.ExpiredSignatureError:
+        payload = PyJWT.decode(raw_token, SECRET_KEY, algorithms=[ALGORITHM])
+    except ExpiredSignatureError:
+        await revoke_session_by_token(raw_token)
         raise HTTPException(status_code=401, detail="Token has expired")
-    except jwt.JWTError:
-        raise HTTPException(status_code=401, detail="Could not validate credentials")
+    except JWTError:
+        await revoke_session_by_token(raw_token)
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+
+    user_id: Optional[str] = payload.get("sub")
+    if user_id is None:
+        await revoke_session_by_token(raw_token)
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+
+    await validate_and_touch_session(raw_token, user_id)
 
     user = await fetch_user_by_id(session, user_id)
     if user is None:
+        await revoke_session_by_token(raw_token)
         raise HTTPException(status_code=401, detail="User not found")
 
     return UserProfile.model_validate(user)
@@ -1346,6 +1524,19 @@ async def require_editor(current_user: UserProfile = Depends(get_current_user)) 
     return current_user
 
 
+async def migrate_existing_password_hashes() -> None:
+    async with async_session() as session:
+        result = await session.execute(select(UserTable))
+        users = result.scalars().all()
+        updated = False
+        for user in users:
+            if not is_password_hash(user.password_hash):
+                user.password_hash = hash_password(user.password_hash)
+                updated = True
+        if updated:
+            await session.commit()
+
+
 async def init_default_users() -> None:
     async with async_session() as session:
         for email, username, role, password in (
@@ -1359,7 +1550,7 @@ async def init_default_users() -> None:
                     email=email,
                     username=username,
                     role=role,
-                    password_hash=password,
+                    password_hash=hash_password(password),
                 )
                 session.add(user)
         await session.commit()
@@ -1401,22 +1592,12 @@ async def purge_project_children(session: AsyncSession, project_id: str) -> None
 
 # ==================== FASTAPI SETUP ====================
 
-app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
-    allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
-)
-api_router = APIRouter(prefix="/api")
-
 
 @app.on_event("startup")
 async def on_startup() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    await migrate_existing_password_hashes()
     await init_default_users()
 
 
@@ -1432,11 +1613,13 @@ async def on_shutdown() -> None:
 async def login(login_data: LoginRequest, session: AsyncSession = Depends(get_session)) -> Token:
     result = await session.execute(select(UserTable).where(UserTable.email == login_data.email))
     user = result.scalar_one_or_none()
-    if user is None or login_data.password != user.password_hash:
+    if user is None or not verify_password(login_data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
 
     expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token({"sub": user.id}, expires)
+    expires_at = datetime.now(timezone.utc) + expires
+    await register_session(user.id, access_token, expires_at)
     return Token(access_token=access_token, token_type="bearer", user=to_schema(UserProfile, user))
 
 
@@ -1462,7 +1645,7 @@ async def create_user(
         email=user.email,
         username=user.username,
         role=user.role,
-        password_hash=user.password,
+        password_hash=hash_password(user.password),
     )
     session.add(user_in_db)
     await session.commit()
@@ -1479,6 +1662,23 @@ async def get_all_users(
     return [to_schema(UserProfile, row) for row in result.scalars().all()]
 
 
+@api_router.patch("/users/{user_id}/role", response_model=UserProfile)
+async def update_user_role(
+    user_id: str,
+    payload: UserRoleUpdate,
+    _: UserProfile = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> UserProfile:
+    user = await fetch_user_by_id(session, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.role = payload.role
+    await session.commit()
+    await session.refresh(user)
+    return to_schema(UserProfile, user)
+
+
 @api_router.delete("/users/{user_id}")
 async def delete_user(
     user_id: str,
@@ -1492,6 +1692,7 @@ async def delete_user(
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
 
+    await revoke_user_sessions(user_id)
     await session.delete(user)
     await session.commit()
     return {"message": "User deleted successfully"}

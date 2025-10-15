@@ -2,13 +2,10 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { API } from "../../App";
 import DataTable from "../DataTable";
-import { CaseUpperIcon, Cross, EyeClosedIcon, InfoIcon, Rocket, Sparkle, UndoDot, View, Watch } from "lucide-react";
-import { Close } from "@radix-ui/react-dialog";
 
 const M2TOC = ({ projectId, isEditor }) => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showInfo, setShowInfo] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -68,15 +65,9 @@ const M2TOC = ({ projectId, isEditor }) => {
       <h2 style={{ fontSize: "1.5rem", fontWeight: "600", marginBottom: "1.5rem" }}>
         Table of Contents
       </h2>
-      <button  onClick={() => setShowInfo(!showInfo)} className="mb-4 px-3 py-1 bg-blue-500 font  rounded hover:bg-blue-600">
-        
-        {showInfo ? <UndoDot></UndoDot> : <InfoIcon></InfoIcon> }
-      </button>
-      {showInfo && (
-        <div className="mb-4 p-3 border rounded bg-gray-50">
-Showing you Table of Contents       
-</div>
-      )}
+      <p className="muted-text" style={{ marginBottom: "1.5rem" }}>
+        Maintain an up-to-date outline of every sheet and section in this project plan.
+      </p>
       <DataTable
         columns={columns}
         data={data}
