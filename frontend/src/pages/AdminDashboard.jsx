@@ -2,15 +2,26 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { API } from "../App";
-import {
-  ArrowDownAZ,
-  ArrowUpAZ,
-  ArrowUpDown,
-  PlusCircle,
-  Search,
-  Trash2,
-  XCircle
-} from "lucide-react";
+import { useGlobalSearch } from "../context/GlobalSearchContext";
+import { ArrowDownAZ, ArrowUpAZ, ArrowUpDown, PlusCircle, Trash2, XCircle } from "lucide-react";
+import { broadcastSessionLogout } from "../utils/session";
+
+const ROLE_ORDER = ["viewer", "editor", "admin"];
+
+const ROLE_METADATA = {
+  viewer: {
+    label: "Viewer",
+    description: "Read-only visibility across the workspace."
+  },
+  editor: {
+    label: "Editor",
+    description: "Can update project content and collaborate with admins."
+  },
+  admin: {
+    label: "Admin",
+    description: "Full access including inviting teammates and managing roles."
+  }
+};
 
 const USER_COLUMNS = [
   { key: "username", label: "Username" },
@@ -31,10 +42,13 @@ const AdminDashboard = () => {
   });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [userSearch, setUserSearch] = useState("");
   const [userSort, setUserSort] = useState({ key: "username", direction: "asc" });
+  const [draggedUserId, setDraggedUserId] = useState(null);
+  const [dropTargetRole, setDropTargetRole] = useState(null);
+  const [updatingUserIds, setUpdatingUserIds] = useState({});
   const navigate = useNavigate();
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+  const { searchTerm, setSearchTerm } = useGlobalSearch();
 
   useEffect(() => {
     fetchUsers();
@@ -82,8 +96,8 @@ const AdminDashboard = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    broadcastSessionLogout();
+    setSearchTerm("");
     navigate("/login");
   };
 
@@ -100,16 +114,19 @@ const AdminDashboard = () => {
     });
   };
 
-  const userTableData = useMemo(() => {
-    const searchLower = userSearch.trim().toLowerCase();
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const hasSearch = Boolean(normalizedSearch);
 
-    const filtered = users.filter((user) => {
-      if (!searchLower) return true;
+  const filteredUsers = useMemo(() => {
+    if (!normalizedSearch) {
+      return users;
+    }
 
-      return USER_COLUMNS.some((column) => {
+    return users.filter((user) =>
+      USER_COLUMNS.some((column) => {
         if (column.key === "created_at") {
           const dateText = new Date(user.created_at).toLocaleDateString();
-          return dateText.toLowerCase().includes(searchLower);
+          return dateText.toLowerCase().includes(normalizedSearch);
         }
 
         const value = user[column.key];
@@ -117,18 +134,20 @@ const AdminDashboard = () => {
           return false;
         }
 
-        return String(value).toLowerCase().includes(searchLower);
-      });
-    });
+        return String(value).toLowerCase().includes(normalizedSearch);
+      })
+    );
+  }, [normalizedSearch, users]);
 
+  const userTableData = useMemo(() => {
     const { key, direction } = userSort;
     if (!key) {
-      return filtered;
+      return filteredUsers;
     }
 
     const multiplier = direction === "asc" ? 1 : -1;
 
-    return [...filtered].sort((a, b) => {
+    return [...filteredUsers].sort((a, b) => {
       let aValue = a[key];
       let bValue = b[key];
 
@@ -151,22 +170,107 @@ const AdminDashboard = () => {
       if (aString > bString) return 1 * multiplier;
       return 0;
     });
-  }, [userSearch, userSort, users]);
+  }, [filteredUsers, userSort]);
+
+  const groupedUsers = useMemo(() => {
+    return ROLE_ORDER.reduce((acc, role) => {
+      acc[role] = filteredUsers.filter((user) => user.role === role);
+      return acc;
+    }, {});
+  }, [filteredUsers]);
+
+  const isOwnAccount = (userId) => userId === currentUser.id;
+
+  const isUpdating = (userId) => Boolean(updatingUserIds[userId]);
+
+  const handleRoleUpdate = async (userId, nextRole) => {
+    const targetUser = users.find((item) => item.id === userId);
+    if (!targetUser || targetUser.role === nextRole) {
+      return;
+    }
+
+    if (isOwnAccount(userId) && nextRole !== "admin") {
+      setError("You cannot downgrade your own admin access.");
+      return;
+    }
+
+    setError("");
+    setSuccess("");
+    setUpdatingUserIds((prev) => ({ ...prev, [userId]: true }));
+
+    try {
+      await axios.patch(`${API}/users/${userId}/role`, { role: nextRole });
+      setUsers((prev) =>
+        prev.map((user) => (user.id === userId ? { ...user, role: nextRole } : user))
+      );
+      setSuccess(`Updated role to ${ROLE_METADATA[nextRole].label}.`);
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to update role");
+    } finally {
+      setUpdatingUserIds((prev) => {
+        const next = { ...prev };
+        delete next[userId];
+        return next;
+      });
+    }
+  };
+
+  const handleDragStart = (event, userId) => {
+    if (isOwnAccount(userId)) {
+      return;
+    }
+    setDraggedUserId(userId);
+    event.dataTransfer.setData("text/plain", userId);
+    event.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragEnd = () => {
+    setDraggedUserId(null);
+    setDropTargetRole(null);
+  };
+
+  const handleDragOver = (event) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDragEnter = (role) => {
+    setDropTargetRole(role);
+  };
+
+  const handleDragLeave = (event) => {
+    if (!event.currentTarget.contains(event.relatedTarget)) {
+      setDropTargetRole(null);
+    }
+  };
+
+  const handleDrop = async (event, role) => {
+    event.preventDefault();
+    setDropTargetRole(null);
+    const droppedId = event.dataTransfer.getData("text/plain") || draggedUserId;
+    if (!droppedId) {
+      return;
+    }
+
+    await handleRoleUpdate(droppedId, role);
+    setDraggedUserId(null);
+  };
 
   return (
-    <div className="page-container">
-      <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
+    <div className="page-container admin-page">
+      <div className="admin-layout">
+        <div className="card admin-hero">
           <div>
-            <h1 style={{ fontSize: "2rem", fontWeight: "700", marginBottom: "0.5rem" }}>
-              Admin Dashboard
-            </h1>
-            <p style={{ color: "#718096" }}>
-              Welcome, {currentUser.username}
-            </p>
+            <h1 className="page-title">Admin Command Centre</h1>
+            <p className="page-subtitle">Welcome, {currentUser.username}</p>
           </div>
-          <div style={{ display: "flex", gap: "1rem" }}>
-            <button className="btn btn-outline" onClick={() => navigate("/projects")} data-testid="view-projects-btn">
+          <div className="admin-hero-actions">
+            <button
+              className="btn btn-outline"
+              onClick={() => navigate("/projects")}
+              data-testid="view-projects-btn"
+            >
               View Projects
             </button>
             <button className="btn btn-danger" onClick={handleLogout} data-testid="logout-btn">
@@ -178,28 +282,78 @@ const AdminDashboard = () => {
         {success && <div className="success-message">{success}</div>}
         {error && <div className="error-message">{error}</div>}
 
-        <div className="card">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", gap: "1rem", flexWrap: "wrap" }}>
-            <h2 style={{ fontSize: "1.5rem", fontWeight: "600" }}>User Management</h2>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
-              <div className="search-box" style={{ flex: "1", minWidth: "240px" }}>
-                <Search aria-hidden="true" className="search-icon" size={18} />
-                <input
-                  type="text"
-                  className="search-input"
-                  placeholder="Search users..."
-                  value={userSearch}
-                  onChange={(e) => setUserSearch(e.target.value)}
-                  data-testid="user-table-search"
-                />
+        <section className="card role-centre">
+          <h2 className="section-title">Role Command Centre</h2>
+          <p className="muted-text">Drag and drop teammates between role lanes to update their access instantly.</p>
+          <div className="role-kanban" role="list">
+            {ROLE_ORDER.map((role) => (
+              <div
+                key={role}
+                className={`role-column ${dropTargetRole === role ? "drag-over" : ""}`}
+                onDragOver={handleDragOver}
+                onDragEnter={() => handleDragEnter(role)}
+                onDragLeave={handleDragLeave}
+                onDrop={(event) => handleDrop(event, role)}
+              >
+                <div className="role-column-header">
+                  <h3 className="role-column-title">{ROLE_METADATA[role].label}</h3>
+                  <span className="role-column-count">
+                    {groupedUsers[role]?.length || 0} member{(groupedUsers[role]?.length || 0) === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <p className="role-column-description">{ROLE_METADATA[role].description}</p>
+                <div className="role-column-body" role="list">
+                  {groupedUsers[role]?.length ? (
+                    groupedUsers[role].map((user) => (
+                      <div
+                        key={user.id}
+                        role="listitem"
+                        className={`role-user-card${draggedUserId === user.id ? " is-dragging" : ""}${isOwnAccount(user.id) ? " is-locked" : ""}`}
+                        draggable={!isOwnAccount(user.id)}
+                        onDragStart={(event) => handleDragStart(event, user.id)}
+                        onDragEnd={handleDragEnd}
+                        data-testid={`role-card-${user.id}`}
+                      >
+                        <span className="role-user-name">{user.username}</span>
+                        <span className="role-user-email">{user.email}</span>
+                        {isOwnAccount(user.id) && <span className="role-user-pill">You</span>}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="role-column-empty">
+                      {hasSearch ? "No matches for this role" : "Drop a user here"}
+                    </div>
+                  )}
+                </div>
               </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="card">
+          <div className="user-directory-header">
+            <h3 className="section-subtitle">User Directory</h3>
+            <div className="user-directory-actions">
+              {searchTerm ? (
+                <button
+                  type="button"
+                  className="clear-search-button"
+                  onClick={() => setSearchTerm("")}
+                  data-testid="clear-user-search"
+                >
+                  <XCircle size={16} aria-hidden="true" />
+                  <span>Clear global search</span>
+                </button>
+              ) : (
+                <span className="muted-text">Use the global search above to filter users.</span>
+              )}
               <button
-                className="btn btn-primary btn-icon"
+                className="btn btn-primary"
                 onClick={() => setShowModal(true)}
                 data-testid="add-user-btn"
-                aria-label="Add User"
               >
                 <PlusCircle size={18} aria-hidden="true" />
+                <span>Create user</span>
               </button>
             </div>
           </div>
@@ -239,7 +393,7 @@ const AdminDashboard = () => {
                 <tbody>
                   {userTableData.length === 0 ? (
                     <tr>
-                      <td colSpan={USER_COLUMNS.length + 1} style={{ textAlign: "center", padding: "2rem", color: "#4a5568" }}>
+                      <td colSpan={USER_COLUMNS.length + 1} className="table-empty-state">
                         {users.length === 0
                           ? "No users available yet."
                           : "No users match the current filters."}
@@ -253,9 +407,22 @@ const AdminDashboard = () => {
 
                           if (column.key === "role") {
                             content = (
-                              <span className={`badge badge-${user.role}`}>
-                                {user.role}
-                              </span>
+                              <div className="role-cell">
+                                <select
+                                  className="role-select"
+                                  value={user.role}
+                                  onChange={(event) => handleRoleUpdate(user.id, event.target.value)}
+                                  disabled={isOwnAccount(user.id) || isUpdating(user.id)}
+                                >
+                                  {ROLE_ORDER.map((role) => (
+                                    <option value={role} key={role}>
+                                      {ROLE_METADATA[role].label}
+                                    </option>
+                                  ))}
+                                </select>
+                                {isOwnAccount(user.id) && <span className="role-hint">Primary admin</span>}
+                                {isUpdating(user.id) && <span className="role-hint">Saving…</span>}
+                              </div>
                             );
                           }
 
@@ -270,7 +437,7 @@ const AdminDashboard = () => {
                           );
                         })}
                         <td data-label="Actions">
-                          {user.id !== currentUser.id && (
+                          {!isOwnAccount(user.id) && (
                             <button
                               className="btn btn-danger btn-icon"
                               onClick={() => handleDeleteUser(user.id)}
@@ -288,7 +455,7 @@ const AdminDashboard = () => {
               </table>
             </div>
           )}
-        </div>
+        </section>
 
         {showModal && (
           <div className="modal-overlay" onClick={() => setShowModal(false)}>
@@ -345,22 +512,19 @@ const AdminDashboard = () => {
                     onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                     data-testid="new-user-role"
                   >
-                    <option value="viewer">Viewer</option>
-                    <option value="editor">Editor</option>
-                    <option value="admin">Admin</option>
+                    {ROLE_ORDER.map((role) => (
+                      <option value={role} key={role}>
+                        {ROLE_METADATA[role].label}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
-                <div style={{ display: "flex", gap: "1rem", marginTop: "1.5rem" }}>
-                  <button type="submit" className="btn btn-primary" style={{ flex: 1 }} data-testid="submit-new-user">
+                <div className="modal-actions">
+                  <button type="submit" className="btn btn-primary" data-testid="submit-new-user">
                     Create User
                   </button>
-                  <button
-                    type="button"
-                    className="btn btn-outline"
-                    onClick={() => setShowModal(false)}
-                    style={{ flex: 1 }}
-                  >
+                  <button type="button" className="btn btn-outline" onClick={() => setShowModal(false)}>
                     Cancel
                   </button>
                 </div>
