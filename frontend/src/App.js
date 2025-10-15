@@ -6,7 +6,9 @@ import AdminDashboard from "./pages/AdminDashboard";
 import ProjectsList from "./pages/ProjectsList";
 import ProjectDetail from "./pages/ProjectDetail";
 import GlobalSearchBar from "./components/GlobalSearchBar";
+import SessionManager from "./components/SessionManager";
 import { SearchProvider } from "./context/GlobalSearchContext";
+import { broadcastSessionLogout, isTokenExpired } from "./utils/session";
 import "./App.css";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -35,6 +37,11 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
     return <Navigate to="/login" replace />;
   }
 
+  if (isTokenExpired(token)) {
+    broadcastSessionLogout();
+    return <Navigate to="/login" replace />;
+  }
+
   if (adminOnly && user.role !== "admin") {
     return <Navigate to="/projects" replace />;
   }
@@ -47,6 +54,7 @@ function App() {
     <div className="App">
       <BrowserRouter>
         <SearchProvider>
+          <SessionManager />
           <GlobalSearchBar />
           <Routes>
             <Route path="/login" element={<LoginPage />} />

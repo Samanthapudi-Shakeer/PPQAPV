@@ -4,23 +4,7 @@ import axios from "axios";
 import { API } from "../App";
 import { useGlobalSearch } from "../context/GlobalSearchContext";
 import { ArrowDownAZ, ArrowUpAZ, ArrowUpDown, PlusCircle, Trash2, XCircle } from "lucide-react";
-
-const ROLE_ORDER = ["viewer", "editor", "admin"];
-
-const ROLE_METADATA = {
-  viewer: {
-    label: "Viewer",
-    description: "Read-only visibility across the workspace."
-  },
-  editor: {
-    label: "Editor",
-    description: "Can update project content and collaborate with admins."
-  },
-  admin: {
-    label: "Admin",
-    description: "Full access including inviting teammates and managing roles."
-  }
-};
+import { broadcastSessionLogout } from "../utils/session";
 
 const ROLE_ORDER = ["viewer", "editor", "admin"];
 
@@ -112,8 +96,7 @@ const AdminDashboard = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    broadcastSessionLogout();
     setSearchTerm("");
     navigate("/login");
   };
@@ -195,91 +178,6 @@ const AdminDashboard = () => {
       return acc;
     }, {});
   }, [filteredUsers]);
-
-  const isOwnAccount = (userId) => userId === currentUser.id;
-
-  const isUpdating = (userId) => Boolean(updatingUserIds[userId]);
-
-  const handleRoleUpdate = async (userId, nextRole) => {
-    const targetUser = users.find((item) => item.id === userId);
-    if (!targetUser || targetUser.role === nextRole) {
-      return;
-    }
-
-    if (isOwnAccount(userId) && nextRole !== "admin") {
-      setError("You cannot downgrade your own admin access.");
-      return;
-    }
-
-    setError("");
-    setSuccess("");
-    setUpdatingUserIds((prev) => ({ ...prev, [userId]: true }));
-
-    try {
-      await axios.patch(`${API}/users/${userId}/role`, { role: nextRole });
-      setUsers((prev) =>
-        prev.map((user) => (user.id === userId ? { ...user, role: nextRole } : user))
-      );
-      setSuccess(`Updated role to ${ROLE_METADATA[nextRole].label}.`);
-      setTimeout(() => setSuccess(""), 3000);
-    } catch (err) {
-      setError(err.response?.data?.detail || "Failed to update role");
-    } finally {
-      setUpdatingUserIds((prev) => {
-        const next = { ...prev };
-        delete next[userId];
-        return next;
-      });
-    }
-  };
-
-  const handleDragStart = (event, userId) => {
-    if (isOwnAccount(userId)) {
-      return;
-    }
-    setDraggedUserId(userId);
-    event.dataTransfer.setData("text/plain", userId);
-    event.dataTransfer.effectAllowed = "move";
-  };
-
-  const handleDragEnd = () => {
-    setDraggedUserId(null);
-    setDropTargetRole(null);
-  };
-
-  const handleDragOver = (event) => {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
-  };
-
-  const handleDragEnter = (role) => {
-    setDropTargetRole(role);
-  };
-
-  const handleDragLeave = (event) => {
-    if (!event.currentTarget.contains(event.relatedTarget)) {
-      setDropTargetRole(null);
-    }
-  };
-
-  const handleDrop = async (event, role) => {
-    event.preventDefault();
-    setDropTargetRole(null);
-    const droppedId = event.dataTransfer.getData("text/plain") || draggedUserId;
-    if (!droppedId) {
-      return;
-    }
-
-    await handleRoleUpdate(droppedId, role);
-    setDraggedUserId(null);
-  };
-
-  const groupedUsers = useMemo(() => {
-    return ROLE_ORDER.reduce((acc, role) => {
-      acc[role] = users.filter((user) => user.role === role);
-      return acc;
-    }, {});
-  }, [users]);
 
   const isOwnAccount = (userId) => userId === currentUser.id;
 

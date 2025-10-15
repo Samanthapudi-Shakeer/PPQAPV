@@ -12,6 +12,7 @@ import {
 import axios from "axios";
 import { API } from "../App";
 import { useGlobalSearch } from "../context/GlobalSearchContext";
+import { broadcastSessionLogout } from "../utils/session";
 import { Button } from "components/ui/button";
 import {
   Card,
@@ -108,8 +109,7 @@ const ProjectsList = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    broadcastSessionLogout();
     setSearchTerm("");
     navigate("/login");
   };
