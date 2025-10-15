@@ -16,6 +16,7 @@ import M10OpportunityManagement from "../components/sections/M10OpportunityManag
 import M11ConfigurationManagement from "../components/sections/M11ConfigurationManagement";
 import M12Deliverables from "../components/sections/M12Deliverables";
 import M13SupplierAgreement from "../components/sections/M13SupplierAgreement";
+import SectionHeading from "../components/SectionHeading";
 
 const SECTION_DEFINITIONS = [
   { id: "M1", name: "Revision History", component: M1RevisionHistory },
@@ -156,6 +157,91 @@ const ProjectDetail = () => {
     navigate("/projects");
   }, [hasUnsavedChanges, navigate]);
 
+  const ActiveSectionComponent = sections.find((s) => s.id === activeTab)?.component;
+
+  const handleSingleEntryDirtyChange = useCallback((sectionId, isDirty) => {
+    if (!sectionId) return;
+    setSingleEntryDirtySections((prev) => {
+      if (prev[sectionId] === isDirty) {
+        return prev;
+      }
+
+      return { ...prev, [sectionId]: isDirty };
+    });
+  }, []);
+
+  const attemptTabChange = useCallback(
+    (nextTab) => {
+      if (!nextTab || nextTab === activeTab) {
+        return true;
+      }
+
+      if (singleEntryDirtySections[activeTab]) {
+        const confirmLeave = window.confirm(
+          "You have unsaved single-entry changes in this section. Continue without saving?"
+        );
+
+        if (!confirmLeave) {
+          return false;
+        }
+      }
+
+      setActiveTab(nextTab);
+      return true;
+    },
+    [activeTab, singleEntryDirtySections]
+  );
+
+  const handleTabClick = useCallback(
+    (nextTab) => {
+      attemptTabChange(nextTab);
+    },
+    [attemptTabChange]
+  );
+
+  const navigateWithinProject = useCallback(
+    async (nextSectionId) => {
+      if (!nextSectionId) {
+        return;
+      }
+
+      const didChange = attemptTabChange(nextSectionId);
+      if (!didChange) {
+        throw new Error("Navigation cancelled");
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 260));
+    },
+    [attemptTabChange]
+  );
+
+  useEffect(() => {
+    if (!registerSectionNavigator) {
+      return undefined;
+    }
+
+    const unregister = registerSectionNavigator({ navigate: navigateWithinProject });
+    return unregister;
+  }, [registerSectionNavigator, navigateWithinProject]);
+
+  const hasUnsavedChanges = useMemo(
+    () => Object.values(singleEntryDirtySections).some(Boolean),
+    [singleEntryDirtySections]
+  );
+
+  const handleBackToProjects = useCallback(() => {
+    if (hasUnsavedChanges) {
+      const confirmLeave = window.confirm(
+        "You have unsaved single-entry changes in this project. Leave without saving?"
+      );
+      if (!confirmLeave) {
+        return;
+      }
+    }
+
+    navigate("/projects");
+  }, [hasUnsavedChanges, navigate]);
+
   if (loading) {
     return (
       <div className="page-container">
@@ -163,6 +249,24 @@ const ProjectDetail = () => {
       </div>
     );
   }
+
+  const hasUnsavedChanges = useMemo(
+    () => Object.values(singleEntryDirtySections).some(Boolean),
+    [singleEntryDirtySections]
+  );
+
+  const handleBackToProjects = useCallback(() => {
+    if (hasUnsavedChanges) {
+      const confirmLeave = window.confirm(
+        "You have unsaved single-entry changes in this project. Leave without saving?"
+      );
+      if (!confirmLeave) {
+        return;
+      }
+    }
+
+    navigate("/projects");
+  }, [hasUnsavedChanges, navigate]);
 
   if (error || !project) {
     return (
