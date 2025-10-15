@@ -1,33 +1,62 @@
 from __future__ import annotations
 
+import asyncio
+import base64
+import hmac
+import json
 import logging
 import os
+import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
+from io import BytesIO
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence, Tuple, Type, TypeVar
+from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence, Set, Tuple, Type, TypeVar
 
-from jose import jwt as PyJWT
+from hashlib import pbkdf2_hmac
+from jose import ExpiredSignatureError, JWTError, jwt as PyJWT
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
+from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
-from sqlalchemy import JSON, DateTime, Integer, String, Text, delete, func, select
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    delete,
+    func,
+    select,
+)
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from starlette.middleware.cors import CORSMiddleware
 
+from openpyxl import Workbook
+from openpyxl.drawing.image import Image as XLImage
+from openpyxl.utils import get_column_letter
+
 app = FastAPI()
+
+_allowed_origins = os.environ.get("CORS_ALLOW_ORIGINS", "*")
+allow_origin_list = [origin.strip() for origin in _allowed_origins.split(",") if origin.strip()]
+if "*" in allow_origin_list:
+    allow_origin_list = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=allow_origin_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+api_router = APIRouter(prefix="/api")
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
@@ -39,6 +68,75 @@ DATABASE_URL = os.environ.get(
 
 engine = create_async_engine(DATABASE_URL, echo=False, future=True)
 async_session = async_sessionmaker(engine, expire_on_commit=False)
+
+PASSWORD_HASH_ALGORITHM = "pbkdf2_sha256"
+PASSWORD_HASH_ITERATIONS = int(os.environ.get("PASSWORD_HASH_ITERATIONS", "390000"))
+
+
+def _b64encode(data: bytes) -> str:
+    return base64.b64encode(data).decode("utf-8")
+
+
+def _b64decode(data: str) -> bytes:
+    return base64.b64decode(data.encode("utf-8"))
+
+
+def hash_password(password: str) -> str:
+    if not isinstance(password, str):
+        raise ValueError("Password must be a string")
+    salt = secrets.token_bytes(16)
+    derived = pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt,
+        PASSWORD_HASH_ITERATIONS,
+    )
+    return "$".join(
+        (
+            PASSWORD_HASH_ALGORITHM,
+            str(PASSWORD_HASH_ITERATIONS),
+            _b64encode(salt),
+            _b64encode(derived),
+        )
+    )
+
+
+def is_password_hash(value: str) -> bool:
+    if not isinstance(value, str):
+        return False
+    parts = value.split("$")
+    if len(parts) != 4 or parts[0] != PASSWORD_HASH_ALGORITHM:
+        return False
+    try:
+        int(parts[1])
+        _b64decode(parts[2])
+        _b64decode(parts[3])
+    except Exception:
+        return False
+    return True
+
+
+def verify_password(password: str, stored_hash: str) -> bool:
+    if not stored_hash:
+        return False
+    if is_password_hash(stored_hash):
+        algorithm, iterations_str, salt_b64, hash_b64 = stored_hash.split("$")
+        if algorithm != PASSWORD_HASH_ALGORITHM:
+            return False
+        try:
+            iterations = int(iterations_str)
+        except ValueError:
+            return False
+        salt = _b64decode(salt_b64)
+        expected = _b64decode(hash_b64)
+        candidate = pbkdf2_hmac(
+            "sha256",
+            password.encode("utf-8"),
+            salt,
+            iterations,
+        )
+        return hmac.compare_digest(expected, candidate)
+    return password == stored_hash
 
 
 class Base(DeclarativeBase):
@@ -76,6 +174,19 @@ class ProjectTable(Base, TimestampMixin):
 
 class ProjectLinkedMixin:
     project_id: Mapped[str] = mapped_column(String, index=True, nullable=False)
+
+
+class ProjectAccessTable(Base, TimestampMixin):
+    __tablename__ = "project_access"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    project_id: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    visible: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    __table_args__ = (UniqueConstraint("user_id", "project_id", name="uq_project_access"),)
 
 
 class RevisionHistoryTable(Base, ProjectLinkedMixin):
@@ -934,6 +1045,89 @@ for section_definition in SECTION_TABLE_DEFINITIONS:
     )
 
 
+INVALID_SHEET_TITLE_CHARS = set("[]:*?/\\")
+MAX_SHEET_TITLE_LENGTH = 31
+EXPORT_COLUMN_EXCLUDES = {"id", "project_id"}
+
+
+def make_sheet_title(base_title: str, used_titles: Set[str]) -> str:
+    sanitized = "".join(
+        "-" if char in INVALID_SHEET_TITLE_CHARS else char for char in base_title
+    ).strip()
+    if not sanitized:
+        sanitized = "Sheet"
+    truncated = sanitized[:MAX_SHEET_TITLE_LENGTH]
+    candidate = truncated or "Sheet"
+    counter = 1
+    while candidate in used_titles:
+        suffix = f"_{counter}"
+        candidate = f"{truncated[:MAX_SHEET_TITLE_LENGTH - len(suffix)]}{suffix}"
+        counter += 1
+    used_titles.add(candidate)
+    return candidate
+
+
+def friendly_header(column_name: str) -> str:
+    return column_name.replace("_", " ").title()
+
+
+def format_cell_value(value: Any) -> Any:
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False)
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return value
+
+
+def decode_image_for_workbook(image_data: str) -> Optional[Tuple[XLImage, BytesIO]]:
+    if not image_data:
+        return None
+    try:
+        base64_data = image_data.split(",", 1)[1] if "," in image_data else image_data
+        binary = base64.b64decode(base64_data)
+    except Exception:
+        return None
+
+    buffer = BytesIO(binary)
+    buffer.seek(0)
+    try:
+        image = XLImage(buffer)
+    except Exception:
+        return None
+
+    max_width = 480
+    max_height = 320
+    width = getattr(image, "width", None)
+    height = getattr(image, "height", None)
+    if width and height:
+        scale = min(
+            1.0,
+            max_width / float(width) if width else 1.0,
+            max_height / float(height) if height else 1.0,
+        )
+        if scale < 1.0:
+            image.width = int(width * scale)
+            image.height = int(height * scale)
+
+    return image, buffer
+
+
+EXPORT_STATIC_TABLES: Sequence[Tuple[str, Type[ProjectLinkedMixin]]] = [
+    ("Project Details", ProjectDetailsTable),
+    ("Revision History", RevisionHistoryTable),
+    ("Table Of Contents", TOCEntryTable),
+    ("Definitions & Acronyms", DefinitionAcronymTable),
+    ("Assumptions", AssumptionTable),
+    ("Constraints", ConstraintTable),
+    ("Dependencies", DependencyTable),
+    ("Stakeholders", StakeholderTable),
+    ("Deliverables", DeliverableTable),
+    ("Milestone Columns", MilestoneColumnTable),
+    ("SAM Deliverables", SamDeliverableTable),
+    ("SAM Milestone Columns", SamMilestoneColumnTable),
+]
+
+
 TABLES_TO_PURGE: List[Type[ProjectLinkedMixin]] = [
     RevisionHistoryTable,
     TOCEntryTable,
@@ -979,9 +1173,95 @@ def serialize_section_row(
 SECRET_KEY = os.environ.get("SECRET_KEY", "change-this-secret")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440
+SESSION_IDLE_TIMEOUT_MINUTES = int(os.environ.get("SESSION_IDLE_TIMEOUT_MINUTES", "30"))
+MAX_CONCURRENT_SESSIONS = max(100, int(os.environ.get("MAX_CONCURRENT_SESSIONS", "1000")))
 
 
 security = HTTPBearer()
+
+
+@dataclass
+class SessionInfo:
+    user_id: str
+    token: str
+    expires_at: datetime
+    last_seen: datetime
+
+
+_session_registry: Dict[str, SessionInfo] = {}
+_session_lock = asyncio.Lock()
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _idle_deadline(info: SessionInfo) -> datetime:
+    return info.last_seen + timedelta(minutes=SESSION_IDLE_TIMEOUT_MINUTES)
+
+
+async def _prune_sessions_locked(now: Optional[datetime] = None) -> None:
+    if now is None:
+        now = _utcnow()
+
+    expired_tokens = [
+        token
+        for token, info in _session_registry.items()
+        if now >= info.expires_at or now >= _idle_deadline(info)
+    ]
+    for token in expired_tokens:
+        _session_registry.pop(token, None)
+
+
+async def register_session(user_id: str, token: str, expires_at: datetime) -> None:
+    async with _session_lock:
+        now = _utcnow()
+        await _prune_sessions_locked(now)
+
+        _session_registry[token] = SessionInfo(
+            user_id=user_id,
+            token=token,
+            expires_at=expires_at,
+            last_seen=now,
+        )
+
+        if len(_session_registry) > MAX_CONCURRENT_SESSIONS:
+            # Remove the stalest session to keep capacity available.
+            stalest_token = min(
+                _session_registry.values(),
+                key=lambda info: info.last_seen,
+            ).token
+            _session_registry.pop(stalest_token, None)
+
+
+async def validate_and_touch_session(token: str, user_id: str) -> None:
+    async with _session_lock:
+        now = _utcnow()
+        await _prune_sessions_locked(now)
+
+        info = _session_registry.get(token)
+        if info is None or info.user_id != user_id:
+            raise HTTPException(status_code=401, detail="Session is no longer active")
+
+        if now >= info.expires_at or now >= _idle_deadline(info):
+            _session_registry.pop(token, None)
+            raise HTTPException(status_code=401, detail="Session has expired")
+
+        info.last_seen = now
+
+
+async def revoke_user_sessions(user_id: str) -> None:
+    async with _session_lock:
+        tokens_to_remove = [
+            token for token, info in _session_registry.items() if info.user_id == user_id
+        ]
+        for token in tokens_to_remove:
+            _session_registry.pop(token, None)
+
+
+async def revoke_session_by_token(token: str) -> None:
+    async with _session_lock:
+        _session_registry.pop(token, None)
 
 # ==================== Pydantic Schemas ====================
 
@@ -1000,6 +1280,10 @@ class UserCreate(BaseModel):
     email: EmailStr
     username: str
     password: str
+    role: str
+
+
+class UserRoleUpdate(BaseModel):
     role: str
 
 
@@ -1031,6 +1315,19 @@ class Project(BaseModel):
 class ProjectCreate(BaseModel):
     name: str
     description: Optional[str] = None
+
+
+class ProjectAccess(BaseModel):
+    model_config = ConfigDict(extra="ignore", from_attributes=True)
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    project_id: str
+    visible: bool = True
+
+
+class ProjectAccessUpdate(BaseModel):
+    visible: bool
 
 
 class RevisionHistory(BaseModel):
@@ -1317,18 +1614,26 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     session: AsyncSession = Depends(get_session),
 ) -> UserProfile:
+    raw_token = credentials.credentials
     try:
-        payload = PyJWT.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: Optional[str] = payload.get("sub")
-        if user_id is None:
-            raise HTTPException(status_code=401, detail="Invalid authentication credentials")
-    except jwt.ExpiredSignatureError:
+        payload = PyJWT.decode(raw_token, SECRET_KEY, algorithms=[ALGORITHM])
+    except ExpiredSignatureError:
+        await revoke_session_by_token(raw_token)
         raise HTTPException(status_code=401, detail="Token has expired")
-    except jwt.JWTError:
-        raise HTTPException(status_code=401, detail="Could not validate credentials")
+    except JWTError:
+        await revoke_session_by_token(raw_token)
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+
+    user_id: Optional[str] = payload.get("sub")
+    if user_id is None:
+        await revoke_session_by_token(raw_token)
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+
+    await validate_and_touch_session(raw_token, user_id)
 
     user = await fetch_user_by_id(session, user_id)
     if user is None:
+        await revoke_session_by_token(raw_token)
         raise HTTPException(status_code=401, detail="User not found")
 
     return UserProfile.model_validate(user)
@@ -1346,6 +1651,19 @@ async def require_editor(current_user: UserProfile = Depends(get_current_user)) 
     return current_user
 
 
+async def migrate_existing_password_hashes() -> None:
+    async with async_session() as session:
+        result = await session.execute(select(UserTable))
+        users = result.scalars().all()
+        updated = False
+        for user in users:
+            if not is_password_hash(user.password_hash):
+                user.password_hash = hash_password(user.password_hash)
+                updated = True
+        if updated:
+            await session.commit()
+
+
 async def init_default_users() -> None:
     async with async_session() as session:
         for email, username, role, password in (
@@ -1359,7 +1677,7 @@ async def init_default_users() -> None:
                     email=email,
                     username=username,
                     role=role,
-                    password_hash=password,
+                    password_hash=hash_password(password),
                 )
                 session.add(user)
         await session.commit()
@@ -1396,27 +1714,20 @@ def to_schema(schema: Type[SchemaType], instance: Any) -> SchemaType:
 async def purge_project_children(session: AsyncSession, project_id: str) -> None:
     for table in TABLES_TO_PURGE:
         await session.execute(delete(table).where(table.project_id == project_id))
+    await session.execute(
+        delete(ProjectAccessTable).where(ProjectAccessTable.project_id == project_id)
+    )
     await session.commit()
 
 
 # ==================== FASTAPI SETUP ====================
-
-app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
-    allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
-)
-api_router = APIRouter(prefix="/api")
 
 
 @app.on_event("startup")
 async def on_startup() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    await migrate_existing_password_hashes()
     await init_default_users()
 
 
@@ -1432,11 +1743,13 @@ async def on_shutdown() -> None:
 async def login(login_data: LoginRequest, session: AsyncSession = Depends(get_session)) -> Token:
     result = await session.execute(select(UserTable).where(UserTable.email == login_data.email))
     user = result.scalar_one_or_none()
-    if user is None or login_data.password != user.password_hash:
+    if user is None or not verify_password(login_data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
 
     expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token({"sub": user.id}, expires)
+    expires_at = datetime.now(timezone.utc) + expires
+    await register_session(user.id, access_token, expires_at)
     return Token(access_token=access_token, token_type="bearer", user=to_schema(UserProfile, user))
 
 
@@ -1462,7 +1775,7 @@ async def create_user(
         email=user.email,
         username=user.username,
         role=user.role,
-        password_hash=user.password,
+        password_hash=hash_password(user.password),
     )
     session.add(user_in_db)
     await session.commit()
@@ -1479,6 +1792,23 @@ async def get_all_users(
     return [to_schema(UserProfile, row) for row in result.scalars().all()]
 
 
+@api_router.patch("/users/{user_id}/role", response_model=UserProfile)
+async def update_user_role(
+    user_id: str,
+    payload: UserRoleUpdate,
+    _: UserProfile = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> UserProfile:
+    user = await fetch_user_by_id(session, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.role = payload.role
+    await session.commit()
+    await session.refresh(user)
+    return to_schema(UserProfile, user)
+
+
 @api_router.delete("/users/{user_id}")
 async def delete_user(
     user_id: str,
@@ -1492,9 +1822,83 @@ async def delete_user(
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
 
+    await revoke_user_sessions(user_id)
+    await session.execute(
+        delete(ProjectAccessTable).where(ProjectAccessTable.user_id == user_id)
+    )
     await session.delete(user)
     await session.commit()
     return {"message": "User deleted successfully"}
+
+
+@api_router.get("/users/{user_id}/project-access", response_model=List[ProjectAccess])
+async def list_user_project_access(
+    user_id: str,
+    _: UserProfile = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> List[ProjectAccess]:
+    user = await fetch_user_by_id(session, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    result = await session.execute(
+        select(ProjectAccessTable).where(ProjectAccessTable.user_id == user_id)
+    )
+    return [to_schema(ProjectAccess, row) for row in result.scalars().all()]
+
+
+@api_router.put(
+    "/users/{user_id}/project-access/{project_id}", response_model=ProjectAccess
+)
+async def upsert_project_access(
+    user_id: str,
+    project_id: str,
+    payload: ProjectAccessUpdate,
+    _: UserProfile = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> ProjectAccess:
+    user = await fetch_user_by_id(session, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    await get_project_or_404(session, project_id)
+
+    result = await session.execute(
+        select(ProjectAccessTable).where(
+            ProjectAccessTable.user_id == user_id,
+            ProjectAccessTable.project_id == project_id,
+        )
+    )
+    entry = result.scalar_one_or_none()
+
+    if entry is None:
+        entry = ProjectAccessTable(
+            user_id=user_id, project_id=project_id, visible=payload.visible
+        )
+        session.add(entry)
+    else:
+        entry.visible = payload.visible
+
+    await session.commit()
+    await session.refresh(entry)
+    return to_schema(ProjectAccess, entry)
+
+
+@api_router.delete("/users/{user_id}/project-access")
+async def reset_project_access(
+    user_id: str,
+    _: UserProfile = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> Dict[str, str]:
+    user = await fetch_user_by_id(session, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    await session.execute(
+        delete(ProjectAccessTable).where(ProjectAccessTable.user_id == user_id)
+    )
+    await session.commit()
+    return {"message": "Project access reset"}
 
 
 # ==================== PROJECT ROUTES ====================
@@ -1519,10 +1923,22 @@ async def create_project(
 
 @api_router.get("/projects", response_model=List[Project])
 async def get_projects(
-    _: UserProfile = Depends(get_current_user),
+    current_user: UserProfile = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> List[Project]:
-    result = await session.execute(select(ProjectTable))
+    stmt = select(ProjectTable)
+
+    if current_user.role != "admin":
+        hidden_stmt = select(ProjectAccessTable.project_id).where(
+            ProjectAccessTable.user_id == current_user.id,
+            ProjectAccessTable.visible.is_(False),
+        )
+        hidden_result = await session.execute(hidden_stmt)
+        hidden_ids = [row[0] for row in hidden_result.all()]
+        if hidden_ids:
+            stmt = stmt.where(ProjectTable.id.notin_(hidden_ids))
+
+    result = await session.execute(stmt)
     return [to_schema(Project, row) for row in result.scalars().all()]
 
 
@@ -1775,6 +2191,138 @@ async def get_single_entry(
     result = await session.execute(stmt)
     row = result.scalar_one_or_none()
     return to_schema(SingleEntryField, row) if row else None
+
+
+@api_router.get("/projects/{project_id}/export/xlsx")
+async def export_project_xlsx(
+    project_id: str,
+    _: UserProfile = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    project = await session.get(ProjectTable, project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    workbook = Workbook()
+    used_titles: Set[str] = set()
+    retained_image_streams: List[BytesIO] = []
+
+    summary_sheet = workbook.active
+    summary_sheet.title = make_sheet_title("Project Summary", used_titles)
+    summary_sheet.column_dimensions["A"].width = 20
+    summary_sheet.column_dimensions["B"].width = 80
+
+    created_at = getattr(project, "created_at", None)
+    summary_rows = [
+        ("Project ID", project.id),
+        ("Project Name", project.name),
+        ("Description", project.description or ""),
+        ("Created By", project.created_by),
+        (
+            "Created At",
+            created_at.isoformat() if isinstance(created_at, datetime) else "",
+        ),
+    ]
+
+    for label, value in summary_rows:
+        summary_sheet.append([label, value])
+
+    single_entry_stmt = select(SingleEntryFieldTable).where(
+        SingleEntryFieldTable.project_id == project_id
+    )
+    single_entries = (await session.execute(single_entry_stmt)).scalars().all()
+    if single_entries:
+        single_sheet = workbook.create_sheet(
+            title=make_sheet_title("Single Entries", used_titles)
+        )
+        single_sheet.append(["Field Name", "Content", "Image"])
+        single_sheet.column_dimensions["A"].width = 32
+        single_sheet.column_dimensions["B"].width = 80
+        single_sheet.column_dimensions["C"].width = 50
+
+        row_index = 2
+        for entry in sorted(single_entries, key=lambda item: item.field_name):
+            single_sheet.cell(row=row_index, column=1, value=entry.field_name)
+            single_sheet.cell(row=row_index, column=2, value=entry.content)
+            if entry.image_data:
+                decoded = decode_image_for_workbook(entry.image_data)
+                if decoded is not None:
+                    image, buffer = decoded
+                    single_sheet.add_image(image, f"C{row_index}")
+                    retained_image_streams.append(buffer)
+                    if getattr(image, "height", None):
+                        single_sheet.row_dimensions[row_index].height = max(
+                            single_sheet.row_dimensions[row_index].height or 15,
+                            image.height * 0.75,
+                        )
+                else:
+                    single_sheet.cell(
+                        row=row_index,
+                        column=3,
+                        value="Image unavailable",
+                    )
+            row_index += 1
+
+    for sheet_title, model in EXPORT_STATIC_TABLES:
+        stmt = select(model).where(model.project_id == project_id)
+        rows = (await session.execute(stmt)).scalars().all()
+        if not rows:
+            continue
+
+        columns = [
+            column.name
+            for column in model.__table__.columns
+            if column.name not in EXPORT_COLUMN_EXCLUDES
+        ]
+        if not columns:
+            continue
+
+        sheet = workbook.create_sheet(title=make_sheet_title(sheet_title, used_titles))
+        sheet.append([friendly_header(column) for column in columns])
+
+        for idx, _ in enumerate(columns, start=1):
+            sheet.column_dimensions[get_column_letter(idx)].width = 24
+
+        for row in rows:
+            sheet.append([format_cell_value(getattr(row, column)) for column in columns])
+
+    for (section, table_name), meta in SECTION_TABLE_REGISTRY.items():
+        stmt = select(meta.model).where(meta.model.project_id == project_id)
+        rows = (await session.execute(stmt)).scalars().all()
+        if not rows:
+            continue
+
+        base_title = f"{section} {table_name.replace('_', ' ').title()}"
+        sheet = workbook.create_sheet(title=make_sheet_title(base_title, used_titles))
+        sheet.append([friendly_header(column) for column in meta.columns])
+
+        for idx, _ in enumerate(meta.columns, start=1):
+            sheet.column_dimensions[get_column_letter(idx)].width = 24
+
+        for row in rows:
+            sheet.append(
+                [format_cell_value(getattr(row, column)) for column in meta.columns]
+            )
+
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+
+    safe_name = "".join(
+        char if char.isalnum() else "_" for char in (project.name or project.id)
+    ).strip("_")
+    filename = f"{safe_name or project.id}.xlsx"
+
+    headers = {
+        "Content-Disposition": f'attachment; filename="{filename}"',
+    }
+
+    return StreamingResponse(
+        output,
+        media_type=
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers,
+    )
 
 
 @api_router.post("/projects/{project_id}/project-details", response_model=ProjectDetails)

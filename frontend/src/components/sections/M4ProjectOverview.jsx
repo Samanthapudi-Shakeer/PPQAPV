@@ -6,7 +6,12 @@ import SingleEntryEditor from "../SingleEntryEditor";
 import { SECTION_CONFIG } from "../../sectionConfig";
 import { useSingleEntries } from "../../hooks/useSingleEntries";
 
-const M4ProjectOverview = ({ projectId, isEditor }) => {
+const M4ProjectOverview = ({
+  projectId,
+  isEditor,
+  sectionId,
+  onSingleEntryDirtyChange
+}) => {
   const [projectDetails, setProjectDetails] = useState(null);
   const [assumptions, setAssumptions] = useState([]);
   const [constraints, setConstraints] = useState([]);
@@ -20,8 +25,24 @@ const M4ProjectOverview = ({ projectId, isEditor }) => {
     loading: singleEntryLoading,
     updateContent: updateSingleEntryContent,
     updateImage: updateSingleEntryImage,
-    saveEntry: saveSingleEntry
+    saveEntry: saveSingleEntry,
+    dirtyFields: singleEntryDirty,
+    hasUnsavedChanges: singleEntryHasUnsaved
   } = useSingleEntries(projectId, singleEntryConfig);
+
+  useEffect(() => {
+    if (onSingleEntryDirtyChange && sectionId) {
+      onSingleEntryDirtyChange(sectionId, singleEntryHasUnsaved);
+    }
+  }, [onSingleEntryDirtyChange, sectionId, singleEntryHasUnsaved]);
+
+  useEffect(() => {
+    return () => {
+      if (onSingleEntryDirtyChange && sectionId) {
+        onSingleEntryDirtyChange(sectionId, false);
+      }
+    };
+  }, [onSingleEntryDirtyChange, sectionId]);
 
   useEffect(() => {
     fetchData();
@@ -220,6 +241,7 @@ const M4ProjectOverview = ({ projectId, isEditor }) => {
                 alert("Failed to save");
               }
             }}
+            dirtyFields={singleEntryDirty}
           />
         </div>
       )}

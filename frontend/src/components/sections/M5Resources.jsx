@@ -7,7 +7,7 @@ import { useGenericTables } from "../../hooks/useGenericTables";
 import { useSingleEntries } from "../../hooks/useSingleEntries";
 import { SECTION_CONFIG } from "../../sectionConfig";
 
-const M5Resources = ({ projectId, isEditor }) => {
+const M5Resources = ({ projectId, isEditor, sectionId, onSingleEntryDirtyChange }) => {
   const [stakeholders, setStakeholders] = useState([]);
   const [loading, setLoading] = useState(true);
   const sectionConfig = SECTION_CONFIG.M5 || { tables: [], singleEntries: [] };
@@ -24,8 +24,24 @@ const M5Resources = ({ projectId, isEditor }) => {
     loading: singleEntryLoading,
     updateContent: updateSingleEntryContent,
     updateImage: updateSingleEntryImage,
-    saveEntry: saveSingleEntry
+    saveEntry: saveSingleEntry,
+    dirtyFields: singleEntryDirty,
+    hasUnsavedChanges: singleEntryHasUnsaved
   } = useSingleEntries(projectId, sectionConfig.singleEntries || []);
+
+  useEffect(() => {
+    if (onSingleEntryDirtyChange && sectionId) {
+      onSingleEntryDirtyChange(sectionId, singleEntryHasUnsaved);
+    }
+  }, [onSingleEntryDirtyChange, sectionId, singleEntryHasUnsaved]);
+
+  useEffect(() => {
+    return () => {
+      if (onSingleEntryDirtyChange && sectionId) {
+        onSingleEntryDirtyChange(sectionId, false);
+      }
+    };
+  }, [onSingleEntryDirtyChange, sectionId]);
 
   useEffect(() => {
     fetchData();
@@ -174,6 +190,7 @@ const M5Resources = ({ projectId, isEditor }) => {
                 alert("Failed to save");
               }
             }}
+            dirtyFields={singleEntryDirty}
           />
         </div>
       ) : null}

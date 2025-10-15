@@ -16,7 +16,7 @@ const LoginPage = () => {
     setLoading(true);
 
     try {
-      const response = await axios.post(`http://localhost:8000/api/auth/login`, { email, password });
+      const response = await axios.post(`${API}/auth/login`, { email, password });
       const { access_token, user } = response.data;
 
       localStorage.setItem("token", access_token);
