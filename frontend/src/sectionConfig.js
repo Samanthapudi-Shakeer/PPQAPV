@@ -44,7 +44,8 @@ export const SECTION_CONFIG = {
           { key: "no_of_people_required", label: "No. of People Required" },
           { key: "available", label: "Available" },
           { key: "project_specific_training_needs", label: "Project Specific Training Needs" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "environment_and_tools",
@@ -56,7 +57,8 @@ export const SECTION_CONFIG = {
           { key: "source", label: "Source" },
           { key: "status", label: "Status" },
           { key: "remarks", label: "Remarks" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "build_buy_reuse",
@@ -76,7 +78,8 @@ export const SECTION_CONFIG = {
             key: "known_defect_vulnerabilities_limitations",
             label: "Known Defects / Vulnerabilities / Limitations"
           }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "reuse_analysis",
@@ -98,7 +101,8 @@ export const SECTION_CONFIG = {
             label: "Impact on Integration Documents"
           },
           { key: "known_defects", label: "Known Defects" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "size_and_complexity",
@@ -113,7 +117,8 @@ export const SECTION_CONFIG = {
             label: "Effort (Person Days / Weeks / Months)"
           },
           { key: "complexity", label: "Complexity" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "duration_effort_estimate_organization_norms",
@@ -123,7 +128,8 @@ export const SECTION_CONFIG = {
           { key: "schedule_days_weeks", label: "Schedule (Days / Weeks)" },
           { key: "effort_person_days_weeks", label: "Effort (Person Days / Weeks)" },
           { key: "remarks_on_deviation", label: "Remarks on Deviation" }
-        ]
+        ],
+        uniqueFields: ["phase_milestone"]
       },
       {
         key: "usage_of_off_the_shelf_component",
@@ -139,7 +145,8 @@ export const SECTION_CONFIG = {
           { key: "integration_document_updated", label: "Integration Document Updated" },
           { key: "test_design_document", label: "Test Design Document" },
           { key: "remarks", label: "Remarks" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "cybersecurity_interface_agreement",
@@ -153,7 +160,8 @@ export const SECTION_CONFIG = {
           { key: "customer", label: "Customer" },
           { key: "level_of_confidentiality", label: "Level of Confidentiality" },
           { key: "remarks", label: "Remarks" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       }
     ]
   },
@@ -173,7 +181,8 @@ export const SECTION_CONFIG = {
           { key: "participants", label: "Participants" },
           { key: "remarks", label: "Remarks" },
           { key: "mode_of_communication", label: "Mode of Communication" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "quantitative_objectives_measurement_and_data_management_plan",
@@ -189,7 +198,8 @@ export const SECTION_CONFIG = {
             key: "reason_for_deviation_from_organization_norm",
             label: "Reason for Deviation"
           }
-        ]
+        ],
+        uniqueFields: ["objective"]
       }
     ]
   },
@@ -211,7 +221,8 @@ export const SECTION_CONFIG = {
           { key: "name_of_standard", label: "Name of Standard" },
           { key: "brief_description", label: "Brief Description" },
           { key: "source", label: "Source" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "verification_and_validation_plan",
@@ -227,7 +238,8 @@ export const SECTION_CONFIG = {
           { key: "approving_authority", label: "Approving Authority" },
           { key: "verification_validation_evidence", label: "Verification & Validation Evidence" },
           { key: "remarks_deviation", label: "Remarks / Deviation" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "confirmation_review_plan",
@@ -241,7 +253,8 @@ export const SECTION_CONFIG = {
           { key: "asil", label: "ASIL" },
           { key: "independence_level", label: "Independence Level" },
           { key: "remarks", label: "Remarks" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "proactive_causal_analysis_plan",
@@ -251,7 +264,8 @@ export const SECTION_CONFIG = {
           { key: "previous_similar_projects_executed", label: "Previous Similar Projects Executed" },
           { key: "major_issues_defects_identified_by_customer", label: "Major Issues / Defects Identified" },
           { key: "corrective_preventive_measures", label: "Corrective / Preventive Measures" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "reactive_causal_analysis_plan",
@@ -265,7 +279,8 @@ export const SECTION_CONFIG = {
           },
           { key: "causal_analysis_method_tool", label: "Causal Analysis Method / Tool" },
           { key: "responsibility", label: "Responsibility" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       }
     ]
   },
@@ -284,7 +299,8 @@ export const SECTION_CONFIG = {
           },
           { key: "decision_making_method_tool", label: "Decision Making Method / Tool" },
           { key: "responsibility", label: "Responsibility" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "tailoring_qms",
@@ -294,7 +310,8 @@ export const SECTION_CONFIG = {
           { key: "brief_description_of_deviation", label: "Brief Description of Deviation" },
           { key: "reasons_justifications", label: "Reasons / Justifications" },
           { key: "remarks", label: "Remarks" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "deviations",
@@ -304,7 +321,8 @@ export const SECTION_CONFIG = {
           { key: "brief_description_of_deviation", label: "Brief Description of Deviation" },
           { key: "reasons_justifications", label: "Reasons / Justifications" },
           { key: "remarks", label: "Remarks" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "product_release_plan",
@@ -317,7 +335,8 @@ export const SECTION_CONFIG = {
           { key: "mode_of_delivery", label: "Mode of Delivery" },
           { key: "qa_release_audit_date", label: "QA Release Audit Date" },
           { key: "remarks", label: "Remarks" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "tailoring_due_to_component_out_of_context",
@@ -340,7 +359,8 @@ export const SECTION_CONFIG = {
             label: "Validations Completed"
           },
           { key: "remarks", label: "Remarks" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "release_cybersecurity_interface_agreement",
@@ -354,7 +374,8 @@ export const SECTION_CONFIG = {
           { key: "customer", label: "Customer" },
           { key: "level_of_confidentiality", label: "Level of Confidentiality" },
           { key: "remarks", label: "Remarks" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       }
     ]
   },
@@ -368,7 +389,8 @@ export const SECTION_CONFIG = {
           { key: "risk_identification_method", label: "Risk Identification Method" },
           { key: "phase_sprint_milestone", label: "Phase / Sprint / Milestone" },
           { key: "remarks", label: "Remarks" }
-        ]
+        ],
+        preventDuplicateRows: true
       },
       {
         key: "risk_mitigation_and_contingency",
@@ -415,7 +437,8 @@ export const SECTION_CONFIG = {
           { key: "responsibility", label: "Responsibility" },
           { key: "status", label: "Status" },
           { key: "remarks", label: "Remarks" }
-        ]
+        ],
+        uniqueFields: ["risk_id"]
       },
       {
         key: "risk_exposure_history",
@@ -451,7 +474,8 @@ export const SECTION_CONFIG = {
           { key: "responsibility", label: "Responsibility" },
           { key: "status", label: "Status" },
           { key: "remarks", label: "Remarks" }
-        ]
+        ],
+        uniqueFields: ["opportunity_id"]
       },
       {
         key: "opportunity_management_plan",
@@ -461,7 +485,8 @@ export const SECTION_CONFIG = {
           { key: "opportunity_identification_method", label: "Identification Method" },
           { key: "phase_sprint_milestone", label: "Phase / Sprint / Milestone" },
           { key: "remarks", label: "Remarks" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "opportunity_value_history",
@@ -482,7 +507,12 @@ export const SECTION_CONFIG = {
         label: "Configuration Management Tools",
         description: "List the configuration management tools and repositories used."
       },
-      { field: "location_of_ci", label: "Location of CI" },
+      {
+        field: "location_of_ci",
+        label: "Location of CI",
+        supportsImage: true,
+        description: "Upload diagrams or photos that show where configuration items are stored."
+      },
       { field: "versioning", label: "Versioning" },
       { field: "baselining", label: "Baselining" },
       { field: "change_management_plan", label: "Change Management Plan" },
@@ -503,7 +533,8 @@ export const SECTION_CONFIG = {
           { key: "description_of_level", label: "Description of Level" },
           { key: "branching_merging_required", label: "Branching / Merging Required" },
           { key: "remarks", label: "Remarks" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "list_of_non_configurable_items",
@@ -516,7 +547,8 @@ export const SECTION_CONFIG = {
           { key: "description_of_level", label: "Description of Level" },
           { key: "branching_merging_required", label: "Branching / Merging Required" },
           { key: "remarks", label: "Remarks" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "naming_convention",
@@ -526,7 +558,8 @@ export const SECTION_CONFIG = {
           { key: "files_and_folders", label: "Files & Folders" },
           { key: "naming_convention", label: "Naming Convention" },
           { key: "name_of_ci", label: "Name of CI" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "branching_and_merging",
@@ -538,7 +571,8 @@ export const SECTION_CONFIG = {
           { key: "branch_name", label: "Branch Name" },
           { key: "risk_associated_with_branching", label: "Risk Associated" },
           { key: "verification", label: "Verification" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "labelling_baselines",
@@ -549,7 +583,8 @@ export const SECTION_CONFIG = {
           { key: "planned_baseline_phase_milestone_date", label: "Planned Baseline Phase / Milestone / Date" },
           { key: "criteria_for_baseline", label: "Criteria for Baseline" },
           { key: "baseline_name_label_or_tag", label: "Baseline Name / Label / Tag" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "labelling_baselines2",
@@ -559,7 +594,8 @@ export const SECTION_CONFIG = {
           { key: "branch_convention", label: "Branch Convention" },
           { key: "phase", label: "Phase" },
           { key: "branch_name_tag", label: "Branch Name / Tag" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "configuration_control",
@@ -573,7 +609,8 @@ export const SECTION_CONFIG = {
           { key: "ed_role", label: "ED Role" },
           { key: "qa_role", label: "QA Role" },
           { key: "ccb_member", label: "CCB Member" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "configuration_control_board",
@@ -583,7 +620,8 @@ export const SECTION_CONFIG = {
           { key: "ccb_members_name", label: "CCB Member Name" },
           { key: "role", label: "Role" },
           { key: "remarks_need_for_inclusion", label: "Remarks / Need for Inclusion" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "configuration_status_accounting",
@@ -591,7 +629,8 @@ export const SECTION_CONFIG = {
         columns: [
           { key: "sl_no", label: "Sl. No" },
           { key: "phase_milestone_month", label: "Phase / Milestone / Month" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "configuration_management_audit",
@@ -599,7 +638,8 @@ export const SECTION_CONFIG = {
         columns: [
           { key: "sl_no", label: "Sl. No" },
           { key: "phase_milestone_month", label: "Phase / Milestone / Month" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       }
     ]
   },
@@ -639,7 +679,8 @@ export const SECTION_CONFIG = {
           { key: "brief_description", label: "Brief Description" },
           { key: "impact_on_project_objectives", label: "Impact on Project Objectives" },
           { key: "remarks", label: "Remarks" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "sam_constraints",
@@ -649,7 +690,8 @@ export const SECTION_CONFIG = {
           { key: "brief_description", label: "Brief Description" },
           { key: "impact_on_project_objectives", label: "Impact on Project Objectives" },
           { key: "remarks", label: "Remarks" }
-        ]
+        ],
+        uniqueFields: ["constraint_no"]
       },
       {
         key: "sam_dependencies",
@@ -659,7 +701,8 @@ export const SECTION_CONFIG = {
           { key: "brief_description", label: "Brief Description" },
           { key: "impact_on_project_objectives", label: "Impact on Project Objectives" },
           { key: "remarks", label: "Remarks" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "sam_risks",
@@ -669,7 +712,8 @@ export const SECTION_CONFIG = {
           { key: "brief_description", label: "Brief Description" },
           { key: "impact_of_project_objectives", label: "Impact on Project Objectives" },
           { key: "remarks", label: "Remarks" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "sam_status_reporting_and_communication_plan",
@@ -691,7 +735,8 @@ export const SECTION_CONFIG = {
           { sl_no: "4", type_of_progress_reviews: "Supplier audits" },
           { sl_no: "5", type_of_progress_reviews: "Management Review" },
           { sl_no: "6", type_of_progress_reviews: "Others (specify)" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "sam_quantitative_objectives_measurement_and_data_management_plan",
@@ -719,7 +764,8 @@ export const SECTION_CONFIG = {
           { key: "validation_method", label: "Validation Method" },
           { key: "approving_authority", label: "Approving Authority" },
           { key: "remarks_for_deviation", label: "Remarks for Deviation" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "tailoring_sam",
@@ -729,7 +775,8 @@ export const SECTION_CONFIG = {
           { key: "brief_description_of_deviation", label: "Brief Description of Deviation" },
           { key: "reasons_justifications", label: "Reasons / Justifications" },
           { key: "remarks", label: "Remarks" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "sam_deviations",
@@ -739,7 +786,8 @@ export const SECTION_CONFIG = {
           { key: "brief_description_of_deviation", label: "Brief Description of Deviation" },
           { key: "reasons_justifications", label: "Reasons / Justifications" },
           { key: "remarks", label: "Remarks" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "sam_product_release_plan",
@@ -750,7 +798,8 @@ export const SECTION_CONFIG = {
           { key: "objective", label: "Objective" },
           { key: "release_date_milestones", label: "Release Date / Milestones" },
           { key: "remarks", label: "Remarks" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "sam_labelling_baselines",
@@ -761,7 +810,8 @@ export const SECTION_CONFIG = {
           { key: "planned_baseline_phase_milestone_date", label: "Planned Baseline Phase / Milestone / Date" },
           { key: "criteria_for_baseline", label: "Criteria for Baseline" },
           { key: "baseline_name_label_or_tag", label: "Baseline Name / Label / Tag" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "sam_labelling_baselines2",
@@ -771,7 +821,8 @@ export const SECTION_CONFIG = {
           { key: "branch_convention", label: "Branch Convention" },
           { key: "phase", label: "Phase" },
           { key: "branch_name_tag", label: "Branch Name / Tag" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       },
       {
         key: "sam_configuration_control",
@@ -785,7 +836,8 @@ export const SECTION_CONFIG = {
           { key: "pgm_dh_role", label: "PGM / DH Role" },
           { key: "qa_role", label: "QA Role" },
           { key: "ccb_member", label: "CCB Member" }
-        ]
+        ],
+        uniqueFields: ["sl_no"]
       }
     ]
   }
