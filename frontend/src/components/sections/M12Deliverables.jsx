@@ -4,6 +4,57 @@ import { Pencil, Trash2 } from "lucide-react";
 import SectionLayout from "../SectionLayout";
 import { API } from "../../App";
 
+const defaultWorkProducts = [
+  "Statement of Work",
+  "Project Plan",
+  "Estimation",
+  "Requirements document",
+  "Design document",
+  "Coding Guidelines",
+  "Source Code",
+  "Executables",
+  "Release Notes",
+  "Test Design and Report",
+  "Review Form and Report",
+  "User Manual",
+  "Installation Manual",
+  "Project Metrics Report",
+  "Casual Analysis and Resolution"
+];
+
+const normalizeSlValue = (value) => {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  if (typeof value === "string") {
+    return value.trim().toLowerCase();
+  }
+
+  return String(value).trim().toLowerCase();
+};
+
+const resolveRowIdentifier = (row) => {
+  if (!row) return null;
+  if (row.id !== undefined && row.id !== null) return String(row.id);
+  if (row._id !== undefined && row._id !== null) return String(row._id);
+  return null;
+};
+
+const hasDuplicateSlNumber = (rows, slValue, ignoreId = null) => {
+  const normalized = normalizeSlValue(slValue);
+  const ignore = ignoreId !== null && ignoreId !== undefined ? String(ignoreId) : null;
+
+  return rows.some((row) => {
+    const rowId = resolveRowIdentifier(row);
+    if (ignore && rowId === ignore) {
+      return false;
+    }
+
+    return normalizeSlValue(row.sl_no) === normalized;
+  });
+};
+
 const M12Deliverables = ({ projectId, isEditor, sectionId, sectionName }) => {
   const [deliverables, setDeliverables] = useState([]);
   const [milestoneColumns, setMilestoneColumns] = useState([]);
@@ -21,24 +72,6 @@ const M12Deliverables = ({ projectId, isEditor, sectionId, sectionName }) => {
   });
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({});
-
-  const defaultWorkProducts = [
-    "Statement of Work",
-    "Project Plan",
-    "Estimation",
-    "Requirements document",
-    "Design document",
-    "Coding Guidelines",
-    "Source Code",
-    "Executables",
-    "Release Notes",
-    "Test Design and Report",
-    "Review Form and Report",
-    "User Manual",
-    "Installation Manual",
-    "Project Metrics Report",
-    "Casual Analysis and Resolution"
-  ];
 
   useEffect(() => {
     fetchData();
@@ -99,6 +132,11 @@ const M12Deliverables = ({ projectId, isEditor, sectionId, sectionName }) => {
   };
 
   const handleAddDeliverable = async () => {
+    if (hasDuplicateSlNumber(deliverables, newDeliverable.sl_no)) {
+      alert("Sl. No must be unique. Please provide a different value before saving.");
+      return;
+    }
+
     try {
       await axios.post(`${API}/projects/${projectId}/deliverables`, newDeliverable);
       setNewDeliverable({
@@ -117,6 +155,11 @@ const M12Deliverables = ({ projectId, isEditor, sectionId, sectionName }) => {
   };
 
   const handleEditDeliverable = async (id) => {
+    if (hasDuplicateSlNumber(deliverables, editData.sl_no, id)) {
+      alert("Sl. No must be unique. Please provide a different value before saving.");
+      return;
+    }
+
     try {
       const { id: _, project_id, ...dataToSend } = editData;
       await axios.put(`${API}/projects/${projectId}/deliverables/${id}`, dataToSend);

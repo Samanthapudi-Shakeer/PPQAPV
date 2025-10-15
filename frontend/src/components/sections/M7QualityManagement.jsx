@@ -146,6 +146,8 @@ const M7QualityManagement = ({
             onDelete={(rowId) => handleDeleteRow(table.key, rowId)}
             isEditor={isEditor}
             addButtonText={table.addButtonText || "Add Record"}
+            uniqueKeys={table.uniqueFields || []}
+            preventDuplicateRows={Boolean(table.preventDuplicateRows)}
           />
         </div>
       )

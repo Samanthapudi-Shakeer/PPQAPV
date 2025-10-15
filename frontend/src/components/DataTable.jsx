@@ -47,7 +47,17 @@ const isDateColumn = (column) => {
   return DATE_LABEL_REGEX.test(column.label || "");
 };
 
-const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButtonText = "Add Row" }) => {
+const DataTable = ({
+  columns,
+  data,
+  onAdd,
+  onEdit,
+  onDelete,
+  isEditor,
+  addButtonText = "Add Row",
+  uniqueKeys = [],
+  preventDuplicateRows = false
+}) => {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({});
@@ -78,6 +88,69 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
       }, {}),
     [columns]
   );
+
+  const normalizeValue = (value) => {
+    if (value === null || value === undefined) {
+      return "";
+    }
+
+    if (typeof value === "string") {
+      return value.trim().toLowerCase();
+    }
+
+    return String(value).trim().toLowerCase();
+  };
+
+  const resolveRowId = (row) => {
+    if (!row) return null;
+    if (row.id !== undefined && row.id !== null) return String(row.id);
+    if (row._id !== undefined && row._id !== null) return String(row._id);
+    if (row.key !== undefined && row.key !== null) return String(row.key);
+    return null;
+  };
+
+  const ensureNoDuplicates = (payload, ignoreRowId = null) => {
+    const normalizedIgnoreId = ignoreRowId !== null && ignoreRowId !== undefined ? String(ignoreRowId) : null;
+
+    if (Array.isArray(uniqueKeys) && uniqueKeys.length > 0) {
+      const duplicateExists = data.some((row) => {
+        const rowId = resolveRowId(row);
+        if (normalizedIgnoreId !== null && rowId === normalizedIgnoreId) {
+          return false;
+        }
+
+        return uniqueKeys.every((key) => normalizeValue(row[key]) === normalizeValue(payload[key]));
+      });
+
+      if (duplicateExists) {
+        const labels = uniqueKeys.map((key) => columnLookup[key]?.label || key);
+        const fieldLabel = labels.join(labels.length > 1 ? ", " : "");
+        const message = labels.length > 1
+          ? `Combination of ${fieldLabel} must be unique. Please update the values before saving.`
+          : `${fieldLabel} must be unique. Please provide a different value before saving.`;
+        alert(message);
+        return false;
+      }
+    }
+
+    if (preventDuplicateRows) {
+      const duplicateRow = data.some((row) => {
+        const rowId = resolveRowId(row);
+        if (normalizedIgnoreId !== null && rowId === normalizedIgnoreId) {
+          return false;
+        }
+
+        return columns.every((column) => normalizeValue(row[column.key]) === normalizeValue(payload[column.key]));
+      });
+
+      if (duplicateRow) {
+        alert("Duplicate row detected. Please adjust the values before saving.");
+        return false;
+      }
+    }
+
+    return true;
+  };
 
   const dateColumnKeys = useMemo(
     () => columns.filter((column) => isDateColumn(column)).map((column) => column.key),
@@ -207,6 +280,10 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
       payload[key] = normalizeDateInput(payload[key]);
     });
 
+    if (!ensureNoDuplicates(payload, editingId)) {
+      return;
+    }
+
     onEdit(editingId, payload);
     setEditingId(null);
     setEditData({});
@@ -222,6 +299,10 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
     dateColumnKeys.forEach((key) => {
       payload[key] = normalizeDateInput(payload[key]);
     });
+
+    if (!ensureNoDuplicates(payload)) {
+      return;
+    }
 
     onAdd(payload);
     setNewRowData({});

@@ -110,6 +110,8 @@ const M9RiskManagement = ({ projectId, isEditor, sectionId, sectionName }) => {
             onDelete={(rowId) => handleDeleteRow(table.key, rowId)}
             isEditor={isEditor}
             addButtonText={table.addButtonText || "Add Record"}
+            uniqueKeys={table.uniqueFields || []}
+            preventDuplicateRows={Boolean(table.preventDuplicateRows)}
           />
         </div>
       )

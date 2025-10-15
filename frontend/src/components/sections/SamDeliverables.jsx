@@ -21,6 +21,39 @@ const defaultWorkProducts = [
   "Casual Analysis and Resolution"
 ];
 
+const normalizeSlValue = (value) => {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  if (typeof value === "string") {
+    return value.trim().toLowerCase();
+  }
+
+  return String(value).trim().toLowerCase();
+};
+
+const resolveRowIdentifier = (row) => {
+  if (!row) return null;
+  if (row.id !== undefined && row.id !== null) return String(row.id);
+  if (row._id !== undefined && row._id !== null) return String(row._id);
+  return null;
+};
+
+const hasDuplicateSlNumber = (rows, slValue, ignoreId = null) => {
+  const normalized = normalizeSlValue(slValue);
+  const ignore = ignoreId !== null && ignoreId !== undefined ? String(ignoreId) : null;
+
+  return rows.some((row) => {
+    const rowId = resolveRowIdentifier(row);
+    if (ignore && rowId === ignore) {
+      return false;
+    }
+
+    return normalizeSlValue(row.sl_no) === normalized;
+  });
+};
+
 const SamDeliverables = ({ projectId, isEditor }) => {
   const [deliverables, setDeliverables] = useState([]);
   const [milestoneColumns, setMilestoneColumns] = useState([]);
@@ -102,6 +135,11 @@ const SamDeliverables = ({ projectId, isEditor }) => {
   };
 
   const handleAddDeliverable = async () => {
+    if (hasDuplicateSlNumber(deliverables, newDeliverable.sl_no)) {
+      alert("Sl. No must be unique. Please provide a different value before saving.");
+      return;
+    }
+
     try {
       await axios.post(`${API}/projects/${projectId}/sam-deliverables`, newDeliverable);
       setNewDeliverable({
@@ -120,6 +158,11 @@ const SamDeliverables = ({ projectId, isEditor }) => {
   };
 
   const handleEditDeliverable = async (id) => {
+    if (hasDuplicateSlNumber(deliverables, editData.sl_no, id)) {
+      alert("Sl. No must be unique. Please provide a different value before saving.");
+      return;
+    }
+
     try {
       const { id: _, project_id, ...payload } = editData;
       await axios.put(`${API}/projects/${projectId}/sam-deliverables/${id}`, payload);

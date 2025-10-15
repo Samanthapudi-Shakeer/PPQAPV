@@ -188,6 +188,7 @@ const M5Resources = ({ projectId, isEditor, sectionId, sectionName, onSingleEntr
           onDelete={handleDelete}
           isEditor={isEditor}
           addButtonText="Add Stakeholder"
+          uniqueKeys={["sl_no"]}
         />
       )
     )
@@ -233,6 +234,8 @@ const M5Resources = ({ projectId, isEditor, sectionId, sectionName, onSingleEntr
             onDelete={(rowId) => handleDeleteTableRow(table.key, rowId)}
             isEditor={isEditor}
             addButtonText={table.addButtonText || "Add Record"}
+            uniqueKeys={table.uniqueFields || []}
+            preventDuplicateRows={Boolean(table.preventDuplicateRows)}
           />
         </div>
       )

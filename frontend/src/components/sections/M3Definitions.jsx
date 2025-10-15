@@ -149,6 +149,7 @@ const M3Definitions = ({ projectId, isEditor, sectionId, sectionName, onSingleEn
               onDelete={handleDeleteDefinition}
               isEditor={isEditor}
               addButtonText="Add Definition"
+              uniqueKeys={["term"]}
             />
           </div>
         )

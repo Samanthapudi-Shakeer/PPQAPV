@@ -78,6 +78,7 @@ const M2TOC = ({ projectId, isEditor, sectionId, sectionName }) => {
               onDelete={handleDelete}
               isEditor={isEditor}
               addButtonText="Add TOC Entry"
+              uniqueKeys={["sheet_name"]}
             />
           </>
         )

@@ -308,6 +308,7 @@ const M4ProjectOverview = ({
           onDelete={handleDeleteAssumption}
           isEditor={isEditor}
           addButtonText="Add Assumption"
+          uniqueKeys={["sl_no"]}
         />
       )
     },
@@ -324,6 +325,7 @@ const M4ProjectOverview = ({
           onDelete={handleDeleteConstraint}
           isEditor={isEditor}
           addButtonText="Add Constraint"
+          uniqueKeys={["constraint_no"]}
         />
       )
     },
@@ -340,6 +342,7 @@ const M4ProjectOverview = ({
           onDelete={handleDeleteDependency}
           isEditor={isEditor}
           addButtonText="Add Dependency"
+          uniqueKeys={["sl_no"]}
         />
       )
     },
@@ -374,6 +377,7 @@ const M4ProjectOverview = ({
           }}
           isEditor={isEditor}
           addButtonText="Add Business Continuity Item"
+          uniqueKeys={["sl_no"]}
         />
       )
     },
@@ -409,6 +413,7 @@ const M4ProjectOverview = ({
           }}
           isEditor={isEditor}
           addButtonText="Add Information Security Requirement"
+          uniqueKeys={["sl_no"]}
         />
       )
     },
