@@ -449,35 +449,35 @@ const DataTable = ({
                         {editingId === row.id ? (
                           <input
                             type={isDateColumn(col) ? "date" : "text"}
-                          className="input"
-                          style={{ padding: "0.5rem", fontSize: "0.875rem" }}
-                          value={editData[col.key] ?? ""}
-                          onChange={(e) =>
-                            setEditData({ ...editData, [col.key]: e.target.value })
-                          }
-                        />
-                      ) : (
-                        (() => {
-                          const value = row[col.key];
+                            className="input"
+                            style={{ padding: "0.5rem", fontSize: "0.875rem" }}
+                            value={editData[col.key] ?? ""}
+                            onChange={(e) =>
+                              setEditData({ ...editData, [col.key]: e.target.value })
+                            }
+                          />
+                        ) : (
+                          (() => {
+                            const value = row[col.key];
 
-                          if (value === null || value === undefined || value === "") {
-                            return "-";
-                          }
+                            if (value === null || value === undefined || value === "") {
+                              return "-";
+                            }
 
-                          if (isDateColumn(col)) {
-                            const formatted = formatDateForDisplay(value);
-                            return formatted || "-";
-                          }
+                            if (isDateColumn(col)) {
+                              const formatted = formatDateForDisplay(value);
+                              return formatted || "-";
+                            }
 
-                          return value;
-                        })()
-                      )}
-                    </td>
-                  ))}
-                  {isEditor && (
-                    <td>
-                      {editingId === row.id ? (
-                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                            return value;
+                          })()
+                        )}
+                      </td>
+                    ))}
+                    {isEditor && (
+                      <td>
+                        {editingId === row.id ? (
+                          <div style={{ display: "flex", gap: "0.5rem" }}>
                           <button
                             className="btn btn-success btn-icon"
                             onClick={handleSave}
@@ -516,8 +516,9 @@ const DataTable = ({
                       )}
                     </td>
                   )}
-                );
-              })
+                </tr>
+              );
+            })
             )}
           </tbody>
         </table>
