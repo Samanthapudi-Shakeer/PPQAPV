@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import axios from "axios";
 import { API } from "../../App";
 import DataTable from "../DataTable";
@@ -9,7 +9,12 @@ import { SECTION_CONFIG } from "../../sectionConfig";
 
 const SECTION_ID = "M7";
 
-const M7QualityManagement = ({ projectId, isEditor }) => {
+const M7QualityManagement = ({
+  projectId,
+  isEditor,
+  sectionId,
+  onSingleEntryDirtyChange
+}) => {
   const config = SECTION_CONFIG[SECTION_ID] || { tables: [], singleEntries: [] };
   const {
     data: tableData,
@@ -24,8 +29,24 @@ const M7QualityManagement = ({ projectId, isEditor }) => {
     loading: singleEntryLoading,
     updateContent,
     updateImage,
-    saveEntry
+    saveEntry,
+    dirtyFields: singleEntryDirty,
+    hasUnsavedChanges: singleEntryHasUnsaved
   } = useSingleEntries(projectId, config.singleEntries || []);
+
+  useEffect(() => {
+    if (onSingleEntryDirtyChange && sectionId) {
+      onSingleEntryDirtyChange(sectionId, singleEntryHasUnsaved);
+    }
+  }, [onSingleEntryDirtyChange, sectionId, singleEntryHasUnsaved]);
+
+  useEffect(() => {
+    return () => {
+      if (onSingleEntryDirtyChange && sectionId) {
+        onSingleEntryDirtyChange(sectionId, false);
+      }
+    };
+  }, [onSingleEntryDirtyChange, sectionId]);
 
   const handleAddRow = async (tableKey, payload) => {
     try {
@@ -97,6 +118,7 @@ const M7QualityManagement = ({ projectId, isEditor }) => {
                 alert("Failed to save");
               }
             }}
+            dirtyFields={singleEntryDirty}
           />
         </div>
       ) : null}

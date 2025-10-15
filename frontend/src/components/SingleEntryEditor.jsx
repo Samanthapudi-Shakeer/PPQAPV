@@ -7,7 +7,8 @@ const SingleEntryEditor = ({
   isEditor = false,
   onContentChange,
   onImageChange,
-  onSave
+  onSave,
+  dirtyFields = {}
 }) => {
   if (!definitions.length) {
     return null;
@@ -100,7 +101,7 @@ const SingleEntryEditor = ({
             <button
               className="btn btn-primary btn-sm"
               onClick={() => onSave?.(entry.field)}
-              disabled={loading}
+              disabled={loading || !dirtyFields[entry.field]}
             >
               Save
             </button>

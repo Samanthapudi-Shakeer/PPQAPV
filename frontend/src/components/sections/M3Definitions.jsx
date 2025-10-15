@@ -3,12 +3,22 @@ import axios from "axios";
 import { API } from "../../App";
 import DataTable from "../DataTable";
 
-const M3Definitions = ({ projectId, isEditor }) => {
+const M3Definitions = ({ projectId, isEditor, sectionId, onSingleEntryDirtyChange }) => {
   const [definitions, setDefinitions] = useState([]);
   const [singleFields, setSingleFields] = useState({
     reference_to_pif: "",
     reference_to_other_documents: "",
     plan_for_other_resources: ""
+  });
+  const [initialSingleFields, setInitialSingleFields] = useState({
+    reference_to_pif: "",
+    reference_to_other_documents: "",
+    plan_for_other_resources: ""
+  });
+  const [dirtyFields, setDirtyFields] = useState({
+    reference_to_pif: false,
+    reference_to_other_documents: false,
+    plan_for_other_resources: false
   });
   const [loading, setLoading] = useState(true);
 
@@ -26,16 +36,47 @@ const M3Definitions = ({ projectId, isEditor }) => {
       ]);
 
       setDefinitions(defsResponse.data);
-      setSingleFields({
+      const nextFields = {
         reference_to_pif: field1.data?.content || "",
         reference_to_other_documents: field2.data?.content || "",
         plan_for_other_resources: field3.data?.content || ""
+      };
+
+      setSingleFields(nextFields);
+      setInitialSingleFields(nextFields);
+      setDirtyFields({
+        reference_to_pif: false,
+        reference_to_other_documents: false,
+        plan_for_other_resources: false
       });
     } catch (err) {
       console.error("Failed to fetch definitions", err);
     } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    if (onSingleEntryDirtyChange && sectionId) {
+      const hasUnsaved = Object.values(dirtyFields).some(Boolean);
+      onSingleEntryDirtyChange(sectionId, hasUnsaved);
+    }
+  }, [dirtyFields, onSingleEntryDirtyChange, sectionId]);
+
+  useEffect(() => {
+    return () => {
+      if (onSingleEntryDirtyChange && sectionId) {
+        onSingleEntryDirtyChange(sectionId, false);
+      }
+    };
+  }, [onSingleEntryDirtyChange, sectionId]);
+
+  const handleSingleFieldChange = (fieldName, value) => {
+    setSingleFields((prev) => ({ ...prev, [fieldName]: value }));
+    setDirtyFields((prev) => ({
+      ...prev,
+      [fieldName]: value !== (initialSingleFields[fieldName] || "")
+    }));
   };
 
   const handleAddDefinition = async (newData) => {
@@ -74,6 +115,8 @@ const M3Definitions = ({ projectId, isEditor }) => {
         content
       });
       alert("Saved successfully!");
+      setInitialSingleFields((prev) => ({ ...prev, [fieldName]: content }));
+      setDirtyFields((prev) => ({ ...prev, [fieldName]: false }));
     } catch (err) {
       alert("Failed to save");
     }
@@ -124,9 +167,7 @@ const M3Definitions = ({ projectId, isEditor }) => {
               className="input"
               rows="4"
               value={singleFields.reference_to_pif}
-              onChange={(e) =>
-                setSingleFields({ ...singleFields, reference_to_pif: e.target.value })
-              }
+              onChange={(e) => handleSingleFieldChange("reference_to_pif", e.target.value)}
               placeholder="Enter reference to PIF..."
               data-testid="reference-to-pif"
             />
@@ -137,6 +178,7 @@ const M3Definitions = ({ projectId, isEditor }) => {
                 handleSaveSingleField("reference_to_pif", singleFields.reference_to_pif)
               }
               data-testid="save-reference-to-pif"
+              disabled={!dirtyFields.reference_to_pif}
             >
               Save
             </button>
@@ -174,7 +216,7 @@ const M3Definitions = ({ projectId, isEditor }) => {
               rows="4"
               value={singleFields.plan_for_other_resources}
               onChange={(e) =>
-                setSingleFields({ ...singleFields, plan_for_other_resources: e.target.value })
+                handleSingleFieldChange("plan_for_other_resources", e.target.value)
               }
               placeholder="Enter reference to other resources..."
               data-testid="plan-for-other-resources"
@@ -189,6 +231,7 @@ const M3Definitions = ({ projectId, isEditor }) => {
                 )
               }
               data-testid="save-plan-for-other-resources"
+              disabled={!dirtyFields.plan_for_other_resources}
             >
               Save
             </button>
@@ -226,10 +269,7 @@ const M3Definitions = ({ projectId, isEditor }) => {
               rows="4"
               value={singleFields.reference_to_other_documents}
               onChange={(e) =>
-                setSingleFields({
-                  ...singleFields,
-                  reference_to_other_documents: e.target.value
-                })
+                handleSingleFieldChange("reference_to_other_documents", e.target.value)
               }
               placeholder="Enter reference to other documents..."
               data-testid="reference-to-other-docs"
@@ -244,6 +284,7 @@ const M3Definitions = ({ projectId, isEditor }) => {
                 )
               }
               data-testid="save-reference-to-other-docs"
+              disabled={!dirtyFields.reference_to_other_documents}
             >
               Save
             </button>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { API } from "../App";
@@ -24,6 +24,7 @@ const ProjectDetail = () => {
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("M1");
+  const [singleEntryDirtySections, setSingleEntryDirtySections] = useState({});
   const [error, setError] = useState("");
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const isEditor = ["admin", "editor"].includes(currentUser.role);
@@ -79,7 +80,39 @@ const ProjectDetail = () => {
     );
   }
 
-  const ActiveSectionComponent = sections.find(s => s.id === activeTab)?.component;
+  const ActiveSectionComponent = sections.find((s) => s.id === activeTab)?.component;
+
+  const handleSingleEntryDirtyChange = useCallback((sectionId, isDirty) => {
+    if (!sectionId) return;
+    setSingleEntryDirtySections((prev) => {
+      if (prev[sectionId] === isDirty) {
+        return prev;
+      }
+
+      return { ...prev, [sectionId]: isDirty };
+    });
+  }, []);
+
+  const handleTabClick = useCallback(
+    (nextTab) => {
+      if (nextTab === activeTab) {
+        return;
+      }
+
+      if (singleEntryDirtySections[activeTab]) {
+        const confirmLeave = window.confirm(
+          "You have unsaved single-entry changes in this section. Continue without saving?"
+        );
+
+        if (!confirmLeave) {
+          return;
+        }
+      }
+
+      setActiveTab(nextTab);
+    },
+    [activeTab, singleEntryDirtySections]
+  );
 
   return (
     <div className="page-container project-detail-layout">
@@ -110,7 +143,7 @@ const ProjectDetail = () => {
             <button
               key={section.id}
               className={`tab-button ${activeTab === section.id ? "active" : ""}`}
-              onClick={() => setActiveTab(section.id)}
+              onClick={() => handleTabClick(section.id)}
               data-testid={`tab-${section.id}`}
             >
               {section.name}
@@ -135,6 +168,7 @@ const ProjectDetail = () => {
               isEditor={isEditor}
               sectionId={activeTab}
               sectionName={sections.find((s) => s.id === activeTab)?.name}
+              onSingleEntryDirtyChange={handleSingleEntryDirtyChange}
             />
           )}
         </div>
