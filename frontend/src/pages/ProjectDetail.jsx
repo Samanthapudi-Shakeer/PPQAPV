@@ -16,6 +16,7 @@ import M10OpportunityManagement from "../components/sections/M10OpportunityManag
 import M11ConfigurationManagement from "../components/sections/M11ConfigurationManagement";
 import M12Deliverables from "../components/sections/M12Deliverables";
 import M13SupplierAgreement from "../components/sections/M13SupplierAgreement";
+import SectionHeading from "../components/SectionHeading";
 
 const ProjectDetail = () => {
   const { projectId } = useParams();
