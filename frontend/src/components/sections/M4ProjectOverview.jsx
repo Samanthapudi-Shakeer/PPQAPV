@@ -3,10 +3,17 @@ import axios from "axios";
 import { API } from "../../App";
 import DataTable from "../DataTable";
 import SingleEntryEditor from "../SingleEntryEditor";
+import SectionLayout from "../SectionLayout";
 import { SECTION_CONFIG } from "../../sectionConfig";
 import { useSingleEntries } from "../../hooks/useSingleEntries";
 
-const M4ProjectOverview = ({ projectId, isEditor }) => {
+const M4ProjectOverview = ({
+  projectId,
+  isEditor,
+  sectionId,
+  sectionName,
+  onSingleEntryDirtyChange
+}) => {
   const [projectDetails, setProjectDetails] = useState(null);
   const [assumptions, setAssumptions] = useState([]);
   const [constraints, setConstraints] = useState([]);
@@ -20,8 +27,24 @@ const M4ProjectOverview = ({ projectId, isEditor }) => {
     loading: singleEntryLoading,
     updateContent: updateSingleEntryContent,
     updateImage: updateSingleEntryImage,
-    saveEntry: saveSingleEntry
+    saveEntry: saveSingleEntry,
+    dirtyFields: singleEntryDirty,
+    hasUnsavedChanges: singleEntryHasUnsaved
   } = useSingleEntries(projectId, singleEntryConfig);
+
+  useEffect(() => {
+    if (onSingleEntryDirtyChange && sectionId) {
+      onSingleEntryDirtyChange(sectionId, singleEntryHasUnsaved);
+    }
+  }, [onSingleEntryDirtyChange, sectionId, singleEntryHasUnsaved]);
+
+  useEffect(() => {
+    return () => {
+      if (onSingleEntryDirtyChange && sectionId) {
+        onSingleEntryDirtyChange(sectionId, false);
+      }
+    };
+  }, [onSingleEntryDirtyChange, sectionId]);
 
   useEffect(() => {
     fetchData();
@@ -155,35 +178,35 @@ const M4ProjectOverview = ({ projectId, isEditor }) => {
   };
 
   const assumptionColumns = [
-    { key: "sl_no", label: "Sl. No" },
+    { key: "sl_no", label: "Sl. No", numericOnly: true },
     { key: "brief_description", label: "Brief Description" },
     { key: "impact_on_project_objectives", label: "Impact on Project Objectives" },
     { key: "remarks", label: "Remarks" }
   ];
 
   const constraintColumns = [
-    { key: "constraint_no", label: "Constraint No" },
+    { key: "constraint_no", label: "Sl. No", numericOnly: true },
     { key: "brief_description", label: "Brief Description" },
     { key: "impact_on_project_objectives", label: "Impact on Project Objectives" },
     { key: "remarks", label: "Remarks" }
   ];
 
   const dependencyColumns = [
-    { key: "sl_no", label: "Sl. No" },
+    { key: "sl_no", label: "Sl. No", numericOnly: true },
     { key: "brief_description", label: "Brief Description" },
     { key: "impact_on_project_objectives", label: "Impact on Project Objectives" },
     { key: "remarks", label: "Remarks" }
   ];
 
   const businessContinuityColumns = [
-    { key: "sl_no", label: "Sl. No" },
+    { key: "sl_no", label: "Sl. No", numericOnly: true },
     { key: "brief_description", label: "Brief Description" },
     { key: "impact_of_project_objectives", label: "Impact on Project Objectives" },
     { key: "remarks", label: "Remarks" }
   ];
 
   const infoSecurityColumns = [
-    { key: "sl_no", label: "Sl. No" },
+    { key: "sl_no", label: "Sl. No", numericOnly: true },
     { key: "phase", label: "Phase" },
     { key: "is_requirement_description", label: "IS Requirement Description" },
     { key: "monitoring_control", label: "Monitoring / Control" },
@@ -192,75 +215,91 @@ const M4ProjectOverview = ({ projectId, isEditor }) => {
     { key: "remarks", label: "Remarks" }
   ];
 
-  if (loading) {
-    return <div className="loading">Loading...</div>;
-  }
+  const handleSingleEntrySave = async (field) => {
+    try {
+      await saveSingleEntry(field);
+      alert("Saved successfully!");
+    } catch (err) {
+      console.error("Failed to save entry", err);
+      alert("Failed to save");
+    }
+  };
 
-  return (
-    <div>
-      <h2 style={{ fontSize: "1.5rem", fontWeight: "600", marginBottom: "1.5rem" }}>
-        Project Overview & Requirements
-      </h2>
-      {singleEntryConfig.length > 0 && (
-        <div style={{ marginTop: "2rem" }}>
-          
-          <SingleEntryEditor
-            definitions={singleEntryConfig}
-            values={singleEntryValues}
-            loading={singleEntryLoading}
-            isEditor={isEditor}
-            onContentChange={updateSingleEntryContent}
-            onImageChange={updateSingleEntryImage}
-            onSave={async (field) => {
-              try {
-                await saveSingleEntry(field);
-                alert("Saved successfully!");
-              } catch (err) {
-                console.error("Failed to save entry", err);
-                alert("Failed to save");
-              }
-            }}
-          />
-        </div>
-      )}
-      {projectDetails && (
-        <div className="card" style={{ background: "#f7fafc", padding: "1.5rem", marginBottom: "2rem" }}>
+  const singleEntryItems = singleEntryConfig.map((entry) => ({
+    id: `single-${entry.field}`,
+    label: entry.label,
+    type: "Single Entry",
+    render: () => (
+      <SingleEntryEditor
+        key={entry.field}
+        definitions={[entry]}
+        values={singleEntryValues}
+        loading={singleEntryLoading}
+        isEditor={isEditor}
+        onContentChange={updateSingleEntryContent}
+        onImageChange={updateSingleEntryImage}
+        onSave={handleSingleEntrySave}
+        dirtyFields={{ [entry.field]: singleEntryDirty[entry.field] }}
+      />
+    )
+  }));
+
+  const navigationItems = [
+    {
+      id: "project-details",
+      label: "Project Details",
+      type: "Overview",
+      render: () => (
+        <div className="card" style={{ background: "#f7fafc", padding: "1.5rem" }}>
           <h3 style={{ fontSize: "1.2rem", fontWeight: "600", marginBottom: "1rem" }}>
             Project Details
           </h3>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "1rem" }}>
-            <div>
-              <strong>Project Model:</strong> {projectDetails.project_model}
+          {loading ? (
+            <div className="loading">Loading...</div>
+          ) : projectDetails ? (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+                gap: "1rem"
+              }}
+            >
+              <div>
+                <strong>Project Model:</strong> {projectDetails.project_model}
+              </div>
+              <div>
+                <strong>Project Type:</strong> {projectDetails.project_type}
+              </div>
+              <div>
+                <strong>Software Type:</strong> {projectDetails.software_type}
+              </div>
+              <div>
+                <strong>Standard:</strong> {projectDetails.standard_to_be_followed}
+              </div>
+              <div>
+                <strong>Customer:</strong> {projectDetails.customer}
+              </div>
+              <div>
+                <strong>Language:</strong> {projectDetails.programming_language}
+              </div>
+              <div>
+                <strong>Duration:</strong> {projectDetails.project_duration}
+              </div>
+              <div>
+                <strong>Team Size:</strong> {projectDetails.team_size}
+              </div>
             </div>
-            <div>
-              <strong>Project Type:</strong> {projectDetails.project_type}
-            </div>
-            <div>
-              <strong>Software Type:</strong> {projectDetails.software_type}
-            </div>
-            <div>
-              <strong>Standard:</strong> {projectDetails.standard_to_be_followed}
-            </div>
-            <div>
-              <strong>Customer:</strong> {projectDetails.customer}
-            </div>
-            <div>
-              <strong>Language:</strong> {projectDetails.programming_language}
-            </div>
-            <div>
-              <strong>Duration:</strong> {projectDetails.project_duration}
-            </div>
-            <div>
-              <strong>Team Size:</strong> {projectDetails.team_size}
-            </div>
-          </div>
+          ) : (
+            <p style={{ color: "#4a5568" }}>Project details are not available.</p>
+          )}
         </div>
-      )}
-
-      <div style={{ marginBottom: "2rem" }}>
-        <h3 style={{ fontSize: "1.2rem", fontWeight: "600", marginBottom: "1rem" }}>
-          Assumptions
-        </h3>
+      )
+    },
+    {
+      id: "table-assumptions",
+      label: "Assumptions",
+      type: "Table",
+      render: () => (
         <DataTable
           columns={assumptionColumns}
           data={assumptions}
@@ -269,13 +308,15 @@ const M4ProjectOverview = ({ projectId, isEditor }) => {
           onDelete={handleDeleteAssumption}
           isEditor={isEditor}
           addButtonText="Add Assumption"
+          uniqueKeys={["sl_no"]}
         />
-      </div>
-
-      <div style={{ marginBottom: "2rem" }}>
-        <h3 style={{ fontSize: "1.2rem", fontWeight: "600", marginBottom: "1rem" }}>
-          Constraints
-        </h3>
+      )
+    },
+    {
+      id: "table-constraints",
+      label: "Constraints",
+      type: "Table",
+      render: () => (
         <DataTable
           columns={constraintColumns}
           data={constraints}
@@ -284,13 +325,15 @@ const M4ProjectOverview = ({ projectId, isEditor }) => {
           onDelete={handleDeleteConstraint}
           isEditor={isEditor}
           addButtonText="Add Constraint"
+          uniqueKeys={["constraint_no"]}
         />
-      </div>
-
-      <div style={{ marginBottom: "2rem" }}>
-        <h3 style={{ fontSize: "1.2rem", fontWeight: "600", marginBottom: "1rem" }}>
-          Dependencies
-        </h3>
+      )
+    },
+    {
+      id: "table-dependencies",
+      label: "Dependencies",
+      type: "Table",
+      render: () => (
         <DataTable
           columns={dependencyColumns}
           data={dependencies}
@@ -299,13 +342,15 @@ const M4ProjectOverview = ({ projectId, isEditor }) => {
           onDelete={handleDeleteDependency}
           isEditor={isEditor}
           addButtonText="Add Dependency"
+          uniqueKeys={["sl_no"]}
         />
-      </div>
-
-      <div style={{ marginTop: "2rem" }}>
-        <h3 style={{ fontSize: "1.2rem", fontWeight: "600", marginBottom: "1rem" }}>
-          Business Continuity
-        </h3>
+      )
+    },
+    {
+      id: "table-business-continuity",
+      label: "Business Continuity",
+      type: "Table",
+      render: () => (
         <DataTable
           columns={businessContinuityColumns}
           data={businessContinuity}
@@ -332,13 +377,15 @@ const M4ProjectOverview = ({ projectId, isEditor }) => {
           }}
           isEditor={isEditor}
           addButtonText="Add Business Continuity Item"
+          uniqueKeys={["sl_no"]}
         />
-      </div>
-
-      <div style={{ marginTop: "2rem" }}>
-        <h3 style={{ fontSize: "1.2rem", fontWeight: "600", marginBottom: "1rem" }}>
-          Information Security Requirements
-        </h3>
+      )
+    },
+    {
+      id: "table-information-security",
+      label: "Information Security Requirements",
+      type: "Table",
+      render: () => (
         <DataTable
           columns={infoSecurityColumns}
           data={informationSecurityRequirements}
@@ -366,11 +413,21 @@ const M4ProjectOverview = ({ projectId, isEditor }) => {
           }}
           isEditor={isEditor}
           addButtonText="Add Information Security Requirement"
+          uniqueKeys={["sl_no"]}
         />
-      </div>
+      )
+    },
+    ...singleEntryItems
+  ];
 
-
-    </div>
+  return (
+    <SectionLayout
+      title="Project Overview & Requirements"
+      sectionId={sectionId}
+      sectionLabel={sectionName}
+      projectId={projectId}
+      items={navigationItems}
+    />
   );
 };
 
