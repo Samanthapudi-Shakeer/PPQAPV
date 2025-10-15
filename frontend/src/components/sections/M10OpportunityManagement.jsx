@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { API } from "../../App";
 import DataTable from "../DataTable";
@@ -10,8 +10,28 @@ const SECTION_ID = "M10";
 
 const M10OpportunityManagement = ({ projectId, isEditor }) => {
   const config = SECTION_CONFIG[SECTION_ID] || { tables: [] };
+  const tables = useMemo(() => config.tables || [], [config.tables]);
+  const [activeTableKey, setActiveTableKey] = useState(() =>
+    tables.length ? tables[0].key : null
+  );
   const { data: tableData, loading, createRow, updateRow, deleteRow, refresh } =
     useGenericTables(projectId, SECTION_ID, config.tables || []);
+
+  useEffect(() => {
+    if (!tables.length) {
+      if (activeTableKey !== null) {
+        setActiveTableKey(null);
+      }
+      return;
+    }
+    const hasActive = tables.some((table) => table.key === activeTableKey);
+    if (!hasActive) {
+      setActiveTableKey(tables[0].key);
+    }
+  }, [tables, activeTableKey]);
+
+  const activeTable = tables.find((table) => table.key === activeTableKey) || null;
+  const activeRows = activeTable ? tableData[activeTable.key] || [] : [];
 
   const handleAddRow = async (tableKey, payload) => {
     try {
