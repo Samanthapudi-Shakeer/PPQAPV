@@ -1,9 +1,20 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { API } from "../App";
 import { useGlobalSearch } from "../context/GlobalSearchContext";
-import { ArrowDownAZ, ArrowUpAZ, ArrowUpDown, PlusCircle, Trash2, XCircle } from "lucide-react";
+import {
+  ArrowDownAZ,
+  ArrowUpAZ,
+  ArrowUpDown,
+  Eye,
+  EyeOff,
+  PlusCircle,
+  RefreshCw,
+  Trash2,
+  UserCog,
+  XCircle
+} from "lucide-react";
 import { broadcastSessionLogout } from "../utils/session";
 import ColumnVisibilityMenu from "../components/ColumnVisibilityMenu";
 
@@ -35,6 +46,7 @@ const AdminDashboard = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [projects, setProjects] = useState([]);
   const [formData, setFormData] = useState({
     email: "",
     username: "",
@@ -53,12 +65,18 @@ const AdminDashboard = () => {
       return acc;
     }, {})
   );
+  const [accessOverrides, setAccessOverrides] = useState({});
+  const [showAccessModal, setShowAccessModal] = useState(false);
+  const [activeAccessUser, setActiveAccessUser] = useState(null);
+  const [accessLoading, setAccessLoading] = useState(false);
+  const [accessSavingProject, setAccessSavingProject] = useState(null);
   const navigate = useNavigate();
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const { searchTerm, setSearchTerm } = useGlobalSearch();
 
   useEffect(() => {
     fetchUsers();
+    fetchProjects();
   }, []);
 
   const fetchUsers = async () => {
@@ -71,6 +89,151 @@ const AdminDashboard = () => {
       setLoading(false);
     }
   };
+
+  const fetchProjects = async () => {
+    try {
+      const response = await axios.get(`${API}/projects`);
+      setProjects(response.data);
+    } catch (err) {
+      setError("Failed to load projects");
+    }
+  };
+
+  const createDefaultAccessMap = useCallback(() => {
+    return projects.reduce((acc, project) => {
+      acc[project.id] = true;
+      return acc;
+    }, {});
+  }, [projects]);
+
+  const buildAccessMap = useCallback(
+    (entries) => {
+      const map = createDefaultAccessMap();
+      entries.forEach((entry) => {
+        map[entry.project_id] = entry.visible;
+      });
+      return map;
+    },
+    [createDefaultAccessMap]
+  );
+
+  const ensureAccessMap = useCallback(
+    (userId) => {
+      if (accessOverrides[userId]) {
+        return accessOverrides[userId];
+      }
+      return createDefaultAccessMap();
+    },
+    [accessOverrides, createDefaultAccessMap]
+  );
+
+  const fetchUserAccess = useCallback(
+    async (userId) => {
+      setAccessLoading(true);
+      try {
+        const response = await axios.get(`${API}/users/${userId}/project-access`);
+        setAccessOverrides((prev) => ({
+          ...prev,
+          [userId]: buildAccessMap(response.data)
+        }));
+      } catch (err) {
+        setError(err.response?.data?.detail || "Failed to load project access");
+      } finally {
+        setAccessLoading(false);
+      }
+    },
+    [buildAccessMap]
+  );
+
+  const openAccessModal = async (user) => {
+    setActiveAccessUser(user);
+    setShowAccessModal(true);
+
+    if (!projects.length) {
+      await fetchProjects();
+    }
+
+    if (!accessOverrides[user.id]) {
+      await fetchUserAccess(user.id);
+    }
+  };
+
+  const closeAccessModal = () => {
+    setShowAccessModal(false);
+    setActiveAccessUser(null);
+    setAccessSavingProject(null);
+  };
+
+  const handleProjectAccessToggle = async (projectId) => {
+    if (!activeAccessUser) {
+      return;
+    }
+
+    const currentMap = ensureAccessMap(activeAccessUser.id);
+    const nextVisible = !(currentMap[projectId] ?? true);
+    setAccessSavingProject(projectId);
+
+    try {
+      await axios.put(`${API}/users/${activeAccessUser.id}/project-access/${projectId}`, {
+        visible: nextVisible
+      });
+      setAccessOverrides((prev) => {
+        const current = prev[activeAccessUser.id] || createDefaultAccessMap();
+        return {
+          ...prev,
+          [activeAccessUser.id]: {
+            ...current,
+            [projectId]: nextVisible
+          }
+        };
+      });
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to update project access");
+    } finally {
+      setAccessSavingProject(null);
+    }
+  };
+
+  const handleResetProjectAccess = async () => {
+    if (!activeAccessUser) {
+      return;
+    }
+
+    setAccessSavingProject("__reset__");
+    try {
+      await axios.delete(`${API}/users/${activeAccessUser.id}/project-access`);
+      setAccessOverrides((prev) => ({
+        ...prev,
+        [activeAccessUser.id]: createDefaultAccessMap()
+      }));
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to reset project access");
+    } finally {
+      setAccessSavingProject(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!projects.length) {
+      return;
+    }
+
+    setAccessOverrides((prev) => {
+      if (!Object.keys(prev).length) {
+        return prev;
+      }
+
+      const next = {};
+      for (const [userId, projectMap] of Object.entries(prev)) {
+        const defaults = createDefaultAccessMap();
+        for (const [projectId, isVisible] of Object.entries(projectMap)) {
+          defaults[projectId] = isVisible;
+        }
+        next[userId] = defaults;
+      }
+      return next;
+    });
+  }, [projects, createDefaultAccessMap]);
 
   const handleCreateUser = async (e) => {
     e.preventDefault();
@@ -212,6 +375,12 @@ const AdminDashboard = () => {
       return acc;
     }, {});
   }, [filteredUsers]);
+
+  const sortedProjects = useMemo(() => {
+    return [...projects].sort((a, b) => a.name.localeCompare(b.name));
+  }, [projects]);
+
+  const activeAccessMap = activeAccessUser ? ensureAccessMap(activeAccessUser.id) : {};
 
   const isOwnAccount = (userId) => userId === currentUser.id;
 
@@ -481,16 +650,26 @@ const AdminDashboard = () => {
                           );
                         })}
                         <td data-label="Actions">
-                          {!isOwnAccount(user.id) && (
+                          <div className="table-actions">
                             <button
-                              className="btn btn-danger btn-icon"
-                              onClick={() => handleDeleteUser(user.id)}
-                              data-testid={`delete-user-${user.id}`}
-                              aria-label={`Delete ${user.username}`}
+                              className="btn btn-outline btn-sm"
+                              onClick={() => openAccessModal(user)}
+                              data-testid={`manage-access-${user.id}`}
                             >
-                              <Trash2 size={18} aria-hidden="true" />
+                              <UserCog size={16} aria-hidden="true" />
+                              <span>Access</span>
                             </button>
-                          )}
+                            {!isOwnAccount(user.id) && (
+                              <button
+                                className="btn btn-danger btn-icon"
+                                onClick={() => handleDeleteUser(user.id)}
+                                data-testid={`delete-user-${user.id}`}
+                                aria-label={`Delete ${user.username}`}
+                              >
+                                <Trash2 size={18} aria-hidden="true" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -573,6 +752,83 @@ const AdminDashboard = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {showAccessModal && activeAccessUser && (
+          <div className="modal-overlay" onClick={closeAccessModal}>
+            <div
+              className="modal-content project-access-modal"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="modal-header">
+                <h2 className="modal-title">
+                  Project visibility for {activeAccessUser.username}
+                </h2>
+                <button className="close-btn" onClick={closeAccessModal} aria-label="Close">
+                  <XCircle size={18} aria-hidden="true" />
+                </button>
+              </div>
+
+              <div className="project-access-body">
+                {accessLoading ? (
+                  <div className="loading">Loading project access…</div>
+                ) : sortedProjects.length === 0 ? (
+                  <div className="project-access-empty">No projects available.</div>
+                ) : (
+                  <ul className="project-access-list">
+                    {sortedProjects.map((project) => {
+                      const isVisible = activeAccessMap[project.id] ?? true;
+                      const isSaving = accessSavingProject === project.id;
+
+                      return (
+                        <li key={project.id} className="project-access-item">
+                          <div className="project-access-details">
+                            <h4>{project.name}</h4>
+                            {project.description && <p>{project.description}</p>}
+                          </div>
+                          <button
+                            type="button"
+                            className={`project-access-toggle ${
+                              isVisible ? "is-visible" : "is-hidden"
+                            }${isSaving ? " is-saving" : ""}`}
+                            onClick={() => handleProjectAccessToggle(project.id)}
+                            disabled={accessLoading || Boolean(accessSavingProject)}
+                          >
+                            {isVisible ? (
+                              <Eye size={16} aria-hidden="true" />
+                            ) : (
+                              <EyeOff size={16} aria-hidden="true" />
+                            )}
+                            <span>{isVisible ? "Visible" : "Hidden"}</span>
+                            {isSaving && <span className="project-access-hint">Saving…</span>}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+
+              <div className="modal-actions project-access-actions">
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={handleResetProjectAccess}
+                  disabled={
+                    accessLoading ||
+                    accessSavingProject === "__reset__" ||
+                    sortedProjects.length === 0
+                  }
+                >
+                  <RefreshCw size={16} aria-hidden="true" />
+                  <span>Reset access</span>
+                </button>
+                <button type="button" className="btn btn-primary" onClick={closeAccessModal}>
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         )}

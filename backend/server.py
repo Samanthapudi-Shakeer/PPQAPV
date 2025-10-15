@@ -19,7 +19,18 @@ from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
-from sqlalchemy import JSON, DateTime, Integer, String, Text, delete, func, select
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    delete,
+    func,
+    select,
+)
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from starlette.middleware.cors import CORSMiddleware
@@ -156,6 +167,19 @@ class ProjectTable(Base, TimestampMixin):
 
 class ProjectLinkedMixin:
     project_id: Mapped[str] = mapped_column(String, index=True, nullable=False)
+
+
+class ProjectAccessTable(Base, TimestampMixin):
+    __tablename__ = "project_access"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    project_id: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    visible: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    __table_args__ = (UniqueConstraint("user_id", "project_id", name="uq_project_access"),)
 
 
 class RevisionHistoryTable(Base, ProjectLinkedMixin):
@@ -1203,6 +1227,19 @@ class ProjectCreate(BaseModel):
     description: Optional[str] = None
 
 
+class ProjectAccess(BaseModel):
+    model_config = ConfigDict(extra="ignore", from_attributes=True)
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    project_id: str
+    visible: bool = True
+
+
+class ProjectAccessUpdate(BaseModel):
+    visible: bool
+
+
 class RevisionHistory(BaseModel):
     model_config = ConfigDict(extra="ignore", from_attributes=True)
 
@@ -1587,6 +1624,9 @@ def to_schema(schema: Type[SchemaType], instance: Any) -> SchemaType:
 async def purge_project_children(session: AsyncSession, project_id: str) -> None:
     for table in TABLES_TO_PURGE:
         await session.execute(delete(table).where(table.project_id == project_id))
+    await session.execute(
+        delete(ProjectAccessTable).where(ProjectAccessTable.project_id == project_id)
+    )
     await session.commit()
 
 
@@ -1693,9 +1733,82 @@ async def delete_user(
         raise HTTPException(status_code=404, detail="User not found")
 
     await revoke_user_sessions(user_id)
+    await session.execute(
+        delete(ProjectAccessTable).where(ProjectAccessTable.user_id == user_id)
+    )
     await session.delete(user)
     await session.commit()
     return {"message": "User deleted successfully"}
+
+
+@api_router.get("/users/{user_id}/project-access", response_model=List[ProjectAccess])
+async def list_user_project_access(
+    user_id: str,
+    _: UserProfile = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> List[ProjectAccess]:
+    user = await fetch_user_by_id(session, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    result = await session.execute(
+        select(ProjectAccessTable).where(ProjectAccessTable.user_id == user_id)
+    )
+    return [to_schema(ProjectAccess, row) for row in result.scalars().all()]
+
+
+@api_router.put(
+    "/users/{user_id}/project-access/{project_id}", response_model=ProjectAccess
+)
+async def upsert_project_access(
+    user_id: str,
+    project_id: str,
+    payload: ProjectAccessUpdate,
+    _: UserProfile = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> ProjectAccess:
+    user = await fetch_user_by_id(session, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    await get_project_or_404(session, project_id)
+
+    result = await session.execute(
+        select(ProjectAccessTable).where(
+            ProjectAccessTable.user_id == user_id,
+            ProjectAccessTable.project_id == project_id,
+        )
+    )
+    entry = result.scalar_one_or_none()
+
+    if entry is None:
+        entry = ProjectAccessTable(
+            user_id=user_id, project_id=project_id, visible=payload.visible
+        )
+        session.add(entry)
+    else:
+        entry.visible = payload.visible
+
+    await session.commit()
+    await session.refresh(entry)
+    return to_schema(ProjectAccess, entry)
+
+
+@api_router.delete("/users/{user_id}/project-access")
+async def reset_project_access(
+    user_id: str,
+    _: UserProfile = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> Dict[str, str]:
+    user = await fetch_user_by_id(session, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    await session.execute(
+        delete(ProjectAccessTable).where(ProjectAccessTable.user_id == user_id)
+    )
+    await session.commit()
+    return {"message": "Project access reset"}
 
 
 # ==================== PROJECT ROUTES ====================
@@ -1720,10 +1833,22 @@ async def create_project(
 
 @api_router.get("/projects", response_model=List[Project])
 async def get_projects(
-    _: UserProfile = Depends(get_current_user),
+    current_user: UserProfile = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> List[Project]:
-    result = await session.execute(select(ProjectTable))
+    stmt = select(ProjectTable)
+
+    if current_user.role != "admin":
+        hidden_stmt = select(ProjectAccessTable.project_id).where(
+            ProjectAccessTable.user_id == current_user.id,
+            ProjectAccessTable.visible.is_(False),
+        )
+        hidden_result = await session.execute(hidden_stmt)
+        hidden_ids = [row[0] for row in hidden_result.all()]
+        if hidden_ids:
+            stmt = stmt.where(ProjectTable.id.notin_(hidden_ids))
+
+    result = await session.execute(stmt)
     return [to_schema(Project, row) for row in result.scalars().all()]
 
 
