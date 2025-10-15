@@ -1,23 +1,173 @@
-import React, { useMemo, useState } from "react";
-import {
-  ArrowDownAZ,
-  ArrowUpAZ,
-  ArrowUpDown,
-  Check,
-  Pencil,
-  PlusCircle,
-  Search,
-  Trash2,
-  XCircle
-} from "lucide-react";
+import React, { useContext, useEffect, useMemo, useState } from "react";
+import { ArrowDownAZ, ArrowUpAZ, ArrowUpDown, Check, Pencil, PlusCircle, Trash2, XCircle } from "lucide-react";
+import { useGlobalSearch } from "../context/GlobalSearchContext";
+import ColumnVisibilityMenu from "./ColumnVisibilityMenu";
+import { SectionItemContext } from "./SectionLayout";
+import { buildTableSearchItems } from "../utils/searchRegistry";
 
-const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButtonText = "Add Row" }) => {
-  const [searchTerm, setSearchTerm] = useState("");
+const DATE_LABEL_REGEX = /\bdate\b/i;
+
+const normalizeDateInput = (value) => {
+  if (!value) return "";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toISOString().slice(0, 10);
+};
+
+const formatDateForDisplay = (value) => {
+  if (!value) return "";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "2-digit"
+  }).format(date);
+};
+
+const isDateColumn = (column) => {
+  if (!column) return false;
+
+  if (column.inputType) {
+    return column.inputType === "date";
+  }
+
+  if (column.type) {
+    return column.type === "date";
+  }
+
+  return DATE_LABEL_REGEX.test(column.label || "");
+};
+
+const DataTable = ({
+  columns,
+  data,
+  onAdd,
+  onEdit,
+  onDelete,
+  isEditor,
+  addButtonText = "Add Row",
+  uniqueKeys = [],
+  preventDuplicateRows = false
+}) => {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({});
   const [showAddModal, setShowAddModal] = useState(false);
   const [newRowData, setNewRowData] = useState({});
+  const [visibleColumns, setVisibleColumns] = useState(() =>
+    columns.reduce((acc, column) => {
+      acc[column.key] = true;
+      return acc;
+    }, {})
+  );
+  const { searchTerm, registerSource, navigateToSection } = useGlobalSearch();
+  const sectionContext = useContext(SectionItemContext);
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const anchorPrefix = useMemo(() => {
+    if (!sectionContext?.projectId || !sectionContext?.sectionId || !sectionContext?.itemId) {
+      return null;
+    }
+
+    return `search-${sectionContext.projectId}-${sectionContext.sectionId}-${sectionContext.itemId}`;
+  }, [sectionContext?.projectId, sectionContext?.sectionId, sectionContext?.itemId]);
+
+  const columnLookup = useMemo(
+    () =>
+      columns.reduce((acc, column) => {
+        acc[column.key] = column;
+        return acc;
+      }, {}),
+    [columns]
+  );
+
+  const normalizeValue = (value) => {
+    if (value === null || value === undefined) {
+      return "";
+    }
+
+    if (typeof value === "string") {
+      return value.trim().toLowerCase();
+    }
+
+    return String(value).trim().toLowerCase();
+  };
+
+  const resolveRowId = (row) => {
+    if (!row) return null;
+    if (row.id !== undefined && row.id !== null) return String(row.id);
+    if (row._id !== undefined && row._id !== null) return String(row._id);
+    if (row.key !== undefined && row.key !== null) return String(row.key);
+    return null;
+  };
+
+  const ensureNoDuplicates = (payload, ignoreRowId = null) => {
+    const normalizedIgnoreId = ignoreRowId !== null && ignoreRowId !== undefined ? String(ignoreRowId) : null;
+
+    if (Array.isArray(uniqueKeys) && uniqueKeys.length > 0) {
+      const duplicateExists = data.some((row) => {
+        const rowId = resolveRowId(row);
+        if (normalizedIgnoreId !== null && rowId === normalizedIgnoreId) {
+          return false;
+        }
+
+        return uniqueKeys.every((key) => normalizeValue(row[key]) === normalizeValue(payload[key]));
+      });
+
+      if (duplicateExists) {
+        const labels = uniqueKeys.map((key) => columnLookup[key]?.label || key);
+        const fieldLabel = labels.join(labels.length > 1 ? ", " : "");
+        const message = labels.length > 1
+          ? `Combination of ${fieldLabel} must be unique. Please update the values before saving.`
+          : `${fieldLabel} must be unique. Please provide a different value before saving.`;
+        alert(message);
+        return false;
+      }
+    }
+
+    if (preventDuplicateRows) {
+      const duplicateRow = data.some((row) => {
+        const rowId = resolveRowId(row);
+        if (normalizedIgnoreId !== null && rowId === normalizedIgnoreId) {
+          return false;
+        }
+
+        return columns.every((column) => normalizeValue(row[column.key]) === normalizeValue(payload[column.key]));
+      });
+
+      if (duplicateRow) {
+        alert("Duplicate row detected. Please adjust the values before saving.");
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  const dateColumnKeys = useMemo(
+    () => columns.filter((column) => isDateColumn(column)).map((column) => column.key),
+    [columns]
+  );
+
+  useEffect(() => {
+    setVisibleColumns((current) => {
+      const nextState = {};
+
+      columns.forEach((column) => {
+        nextState[column.key] = current[column.key] !== false;
+      });
+
+      return nextState;
+    });
+  }, [columns]);
 
   const handleSort = (columnKey) => {
     setSortConfig((current) => {
@@ -33,10 +183,8 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
   };
 
   const filteredAndSortedData = useMemo(() => {
-    const searchLower = searchTerm.trim().toLowerCase();
-
     const filtered = data.filter((row) => {
-      if (!searchLower) return true;
+      if (!normalizedSearch) return true;
 
       return columns.some((col) => {
         const value = row[col.key];
@@ -44,7 +192,9 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
           return false;
         }
 
-        return String(value).toLowerCase().includes(searchLower);
+        const searchValue = isDateColumn(col) ? formatDateForDisplay(value) : String(value);
+
+        return searchValue.toLowerCase().includes(normalizedSearch);
       });
     });
 
@@ -56,11 +206,23 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
     const multiplier = direction === "asc" ? 1 : -1;
 
     return [...filtered].sort((a, b) => {
+      const column = columnLookup[key];
       const aValue = a[key];
       const bValue = b[key];
 
       if (aValue === null || aValue === undefined) return 1 * multiplier;
       if (bValue === null || bValue === undefined) return -1 * multiplier;
+
+      if (isDateColumn(column)) {
+        const aDate = new Date(aValue).getTime();
+        const bDate = new Date(bValue).getTime();
+
+        if (!Number.isNaN(aDate) && !Number.isNaN(bDate)) {
+          if (aDate < bDate) return -1 * multiplier;
+          if (aDate > bDate) return 1 * multiplier;
+          return 0;
+        }
+      }
 
       if (typeof aValue === "number" && typeof bValue === "number") {
         return (aValue - bValue) * multiplier;
@@ -73,15 +235,56 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
       if (aString > bString) return 1 * multiplier;
       return 0;
     });
-  }, [columns, data, searchTerm, sortConfig]);
+  }, [columns, data, normalizedSearch, sortConfig]);
+
+  const toggleColumnVisibility = (columnKey) => {
+    setVisibleColumns((current) => {
+      const visibleCount = columns.reduce((total, column) => {
+        return total + (current[column.key] !== false ? 1 : 0);
+      }, 0);
+
+      const isVisible = current[columnKey] !== false;
+
+      if (isVisible && visibleCount === 1) {
+        return current;
+      }
+
+      return { ...current, [columnKey]: isVisible ? false : true };
+    });
+  };
+
+  const showAllColumns = () => {
+    setVisibleColumns(
+      columns.reduce((acc, column) => {
+        acc[column.key] = true;
+        return acc;
+      }, {})
+    );
+  };
+
+  const displayedColumns = columns.filter((column) => visibleColumns[column.key] !== false);
 
   const handleEdit = (row) => {
+    const normalizedRow = { ...row };
+    dateColumnKeys.forEach((key) => {
+      normalizedRow[key] = normalizeDateInput(row[key]);
+    });
+
     setEditingId(row.id);
-    setEditData({ ...row });
+    setEditData(normalizedRow);
   };
 
   const handleSave = () => {
-    onEdit(editingId, editData);
+    const payload = { ...editData };
+    dateColumnKeys.forEach((key) => {
+      payload[key] = normalizeDateInput(payload[key]);
+    });
+
+    if (!ensureNoDuplicates(payload, editingId)) {
+      return;
+    }
+
+    onEdit(editingId, payload);
     setEditingId(null);
     setEditData({});
   };
@@ -92,10 +295,56 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
   };
 
   const handleAdd = () => {
-    onAdd(newRowData);
+    const payload = { ...newRowData };
+    dateColumnKeys.forEach((key) => {
+      payload[key] = normalizeDateInput(payload[key]);
+    });
+
+    if (!ensureNoDuplicates(payload)) {
+      return;
+    }
+
+    onAdd(payload);
     setNewRowData({});
     setShowAddModal(false);
   };
+
+  useEffect(() => {
+    if (!registerSource || !sectionContext?.projectId || !sectionContext?.sectionId || !sectionContext?.itemId) {
+      return undefined;
+    }
+
+    const sourceId = `${sectionContext.projectId}-${sectionContext.sectionId}-${sectionContext.itemId}`;
+
+    const unregister = registerSource({
+      id: sourceId,
+      getItems: () =>
+        buildTableSearchItems({
+          projectId: sectionContext.projectId,
+          sectionId: sectionContext.sectionId,
+          sectionLabel: sectionContext.sectionLabel,
+          tableId: sectionContext.itemId,
+          tableLabel: sectionContext.itemLabel,
+          rows: data,
+          columns,
+          navigateToSection,
+          anchorPrefix
+        })
+    });
+
+    return unregister;
+  }, [
+    registerSource,
+    sectionContext?.projectId,
+    sectionContext?.sectionId,
+    sectionContext?.itemId,
+    sectionContext?.itemLabel,
+    sectionContext?.sectionLabel,
+    data,
+    columns,
+    navigateToSection,
+    anchorPrefix
+  ]);
 
   return (
     <div>
@@ -110,34 +359,40 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
           flexWrap: "wrap"
         }}
       >
-        <div className="search-box" style={{ flex: "1", maxWidth: "360px" }}>
-          <Search aria-hidden="true" className="search-icon" size={18} />
-          <input
-            type="text"
-            className="search-input"
-            placeholder="Search..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            data-testid="table-search"
-          />
+        <div className="table-search-message">
+          {normalizedSearch ? (
+            <span>
+              Showing results for <strong>"{searchTerm}"</strong>
+            </span>
+          ) : (
+            <span className="muted-text">Use the global search above to refine this table.</span>
+          )}
         </div>
-        {isEditor && (
-          <button
-            className="btn btn-primary btn-icon"
-            onClick={() => setShowAddModal(true)}
-            data-testid="add-row-btn"
-            aria-label={addButtonText}
-          >
-            <PlusCircle size={18} aria-hidden="true" />
-          </button>
-        )}
+        <div className="table-actions">
+          <ColumnVisibilityMenu
+            columns={columns}
+            visibleMap={visibleColumns}
+            onToggle={toggleColumnVisibility}
+            onShowAll={showAllColumns}
+          />
+          {isEditor && (
+            <button
+              className="btn btn-primary btn-icon"
+              onClick={() => setShowAddModal(true)}
+              data-testid="add-row-btn"
+              aria-label={addButtonText}
+            >
+              <PlusCircle size={18} aria-hidden="true" />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="table-container">
         <table className="data-table">
           <thead>
             <tr>
-              {columns.map((col) => {
+              {displayedColumns.map((col) => {
                 const isSorted = sortConfig.key === col.key;
                 const SortIcon = !isSorted
                   ? ArrowUpDown
@@ -166,27 +421,56 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
             {filteredAndSortedData.length === 0 ? (
               <tr>
                 <td
-                  colSpan={columns.length + (isEditor ? 1 : 0)}
+                  colSpan={displayedColumns.length + (isEditor ? 1 : 0)}
                   style={{ textAlign: "center", padding: "2rem", color: "#4a5568" }}
                 >
-                  No data available. {isEditor && "Click 'Add Row' to get started."}
+                  {normalizedSearch
+                    ? "No rows match the current search."
+                    : (
+                        <>
+                          No data available.
+                          {isEditor && " Click 'Add Row' to get started."}
+                        </>
+                      )}
                 </td>
               </tr>
             ) : (
-              filteredAndSortedData.map((row) => (
-                <tr key={row.id}>
-                  {columns.map((col) => (
-                    <td key={col.key} data-label={col.label}>
-                      {editingId === row.id ? (
-                        <input
-                          type="text"
+              filteredAndSortedData.map((row, index) => {
+                const rowKey = row.id ?? row._id ?? `index-${index}`;
+                return (
+                  <tr
+                    key={rowKey}
+                    id={anchorPrefix ? `${anchorPrefix}-row-${rowKey}` : undefined}
+                    data-search-table={sectionContext?.itemId || undefined}
+                    data-search-row={rowKey}
+                  >
+                    {displayedColumns.map((col) => (
+                      <td key={col.key} data-label={col.label}>
+                        {editingId === row.id ? (
+                          <input
+                            type={isDateColumn(col) ? "date" : "text"}
                           className="input"
                           style={{ padding: "0.5rem", fontSize: "0.875rem" }}
                           value={editData[col.key] ?? ""}
-                          onChange={(e) => setEditData({ ...editData, [col.key]: e.target.value })}
+                          onChange={(e) =>
+                            setEditData({ ...editData, [col.key]: e.target.value })
+                          }
                         />
                       ) : (
-                        row[col.key] ?? "-"
+                        (() => {
+                          const value = row[col.key];
+
+                          if (value === null || value === undefined || value === "") {
+                            return "-";
+                          }
+
+                          if (isDateColumn(col)) {
+                            const formatted = formatDateForDisplay(value);
+                            return formatted || "-";
+                          }
+
+                          return value;
+                        })()
                       )}
                     </td>
                   ))}
@@ -232,8 +516,8 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
                       )}
                     </td>
                   )}
-                </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>
@@ -259,10 +543,12 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
                 <div className="form-group" key={col.key}>
                   <label className="label">{col.label}</label>
                   <input
-                    type="text"
+                    type={isDateColumn(col) ? "date" : "text"}
                     className="input"
                     value={newRowData[col.key] ?? ""}
-                    onChange={(e) => setNewRowData({ ...newRowData, [col.key]: e.target.value })}
+                    onChange={(e) =>
+                      setNewRowData({ ...newRowData, [col.key]: e.target.value })
+                    }
                     placeholder={`Enter ${col.label.toLowerCase()}`}
                     data-testid={`new-${col.key}`}
                   />
