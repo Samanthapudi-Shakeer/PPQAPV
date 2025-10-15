@@ -14,6 +14,7 @@ const M11ConfigurationManagement = ({
   projectId,
   isEditor,
   sectionId,
+  sectionName,
   onSingleEntryDirtyChange
 }) => {
   const config = SECTION_CONFIG[SECTION_ID] || { tables: [], singleEntries: [] };
@@ -181,7 +182,15 @@ const M11ConfigurationManagement = ({
     });
   }
 
-  return <SectionLayout title="M11 - Configuration Management" items={navigationItems} />;
+  return (
+    <SectionLayout
+      title="M11 - Configuration Management"
+      sectionId={sectionId}
+      sectionLabel={sectionName}
+      projectId={projectId}
+      items={navigationItems}
+    />
+  );
 };
 
 export default M11ConfigurationManagement;

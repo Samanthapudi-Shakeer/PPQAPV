@@ -1,4 +1,7 @@
-import React from "react";
+import React, { useContext, useEffect, useMemo } from "react";
+import { SectionItemContext } from "./SectionLayout";
+import { useGlobalSearch } from "../context/GlobalSearchContext";
+import { buildSingleEntrySearchItems } from "../utils/searchRegistry";
 
 const SingleEntryEditor = ({
   definitions = [],
@@ -10,6 +13,53 @@ const SingleEntryEditor = ({
   onSave,
   dirtyFields = {}
 }) => {
+  const sectionContext = useContext(SectionItemContext);
+  const { registerSource, navigateToSection } = useGlobalSearch();
+  const anchorPrefix = useMemo(() => {
+    if (!sectionContext?.projectId || !sectionContext?.sectionId || !sectionContext?.itemId) {
+      return null;
+    }
+
+    return `single-entry-${sectionContext.projectId}-${sectionContext.sectionId}-${sectionContext.itemId}`;
+  }, [sectionContext?.projectId, sectionContext?.sectionId, sectionContext?.itemId]);
+
+  useEffect(() => {
+    if (!registerSource || !sectionContext?.projectId || !sectionContext?.sectionId || !sectionContext?.itemId) {
+      return undefined;
+    }
+
+    const sourceId = `${sectionContext.projectId}-${sectionContext.sectionId}-${sectionContext.itemId}-single-entry`;
+
+    const unregister = registerSource({
+      id: sourceId,
+      getItems: () =>
+        buildSingleEntrySearchItems({
+          projectId: sectionContext.projectId,
+          sectionId: sectionContext.sectionId,
+          sectionLabel: sectionContext.sectionLabel,
+          groupId: sectionContext.itemId,
+          groupLabel: sectionContext.itemLabel,
+          entries: definitions,
+          values,
+          navigateToSection,
+          anchorPrefix
+        })
+    });
+
+    return unregister;
+  }, [
+    registerSource,
+    sectionContext?.projectId,
+    sectionContext?.sectionId,
+    sectionContext?.itemId,
+    sectionContext?.itemLabel,
+    sectionContext?.sectionLabel,
+    definitions,
+    values,
+    navigateToSection,
+    anchorPrefix
+  ]);
+
   if (!definitions.length) {
     return null;
   }
@@ -25,10 +75,11 @@ const SingleEntryEditor = ({
           typeof rawContent === "string"
             ? rawContent.trim().length > 0
             : rawContent !== null && rawContent !== undefined;
+        const containerId = anchorPrefix ? `${anchorPrefix}-${entry.field}` : undefined;
 
         if (!isEditor) {
           return (
-            <div className="single-entry-viewer" key={entry.field}>
+            <div className="single-entry-viewer" key={entry.field} id={containerId}>
               <h3 className="single-entry-viewer-heading">{entry.label}</h3>
               <p className={`single-entry-viewer-content${hasContent ? "" : " is-empty"}`}>
                 {hasContent
@@ -47,7 +98,12 @@ const SingleEntryEditor = ({
         }
 
         return (
-          <div className="card" key={entry.field} style={{ background: "#f7fafc", padding: "1.5rem" }}>
+          <div
+            className="card"
+            key={entry.field}
+            id={containerId}
+            style={{ background: "#f7fafc", padding: "1.5rem" }}
+          >
             <h3 style={{ fontSize: "1.1rem", fontWeight: "600", marginBottom: "0.75rem" }}>
               {entry.label}
             </h3>
@@ -63,6 +119,7 @@ const SingleEntryEditor = ({
               disabled={loading}
               placeholder={`Enter ${entry.label.toLowerCase()}...`}
               style={{ marginBottom: entry.supportsImage ? "1rem" : "0" }}
+              data-search-field={entry.field}
             />
             {entry.supportsImage && (
               <div style={{ marginBottom: "1rem" }}>

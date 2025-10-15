@@ -8,7 +8,7 @@ import { SECTION_CONFIG } from "../../sectionConfig";
 
 const SECTION_ID = "M9";
 
-const M9RiskManagement = ({ projectId, isEditor }) => {
+const M9RiskManagement = ({ projectId, isEditor, sectionId, sectionName }) => {
   const config = SECTION_CONFIG[SECTION_ID] || { tables: [] };
   const tables = useMemo(() => config.tables || [], [config.tables]);
   const [activeTableKey, setActiveTableKey] = useState(() =>
@@ -127,7 +127,15 @@ const M9RiskManagement = ({ projectId, isEditor }) => {
     });
   }
 
-  return <SectionLayout title="M9 - Risk Management" items={navigationItems} />;
+  return (
+    <SectionLayout
+      title="M9 - Risk Management"
+      sectionId={sectionId}
+      sectionLabel={sectionName}
+      projectId={projectId}
+      items={navigationItems}
+    />
+  );
 };
 
 export default M9RiskManagement;

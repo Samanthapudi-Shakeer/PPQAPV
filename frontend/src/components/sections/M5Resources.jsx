@@ -8,7 +8,7 @@ import { useGenericTables } from "../../hooks/useGenericTables";
 import { useSingleEntries } from "../../hooks/useSingleEntries";
 import { SECTION_CONFIG } from "../../sectionConfig";
 
-const M5Resources = ({ projectId, isEditor, sectionId, onSingleEntryDirtyChange }) => {
+const M5Resources = ({ projectId, isEditor, sectionId, sectionName, onSingleEntryDirtyChange }) => {
   const [stakeholders, setStakeholders] = useState([]);
   const [loading, setLoading] = useState(true);
   const sectionConfig = SECTION_CONFIG.M5 || { tables: [], singleEntries: [] };
@@ -241,7 +241,15 @@ const M5Resources = ({ projectId, isEditor, sectionId, onSingleEntryDirtyChange 
 
   const navigationItems = [stakeholderItem, ...tableItems, ...singleEntryItems];
 
-  return <SectionLayout title="Resources Plan & Estimation" items={navigationItems} />;
+  return (
+    <SectionLayout
+      title="Resources Plan & Estimation"
+      sectionId={sectionId}
+      sectionLabel={sectionName}
+      projectId={projectId}
+      items={navigationItems}
+    />
+  );
 };
 
 export default M5Resources;

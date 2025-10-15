@@ -8,7 +8,7 @@ import { SECTION_CONFIG } from "../../sectionConfig";
 
 const SECTION_ID = "M8";
 
-const M8DecisionManagement = ({ projectId, isEditor }) => {
+const M8DecisionManagement = ({ projectId, isEditor, sectionId, sectionName }) => {
   const config = SECTION_CONFIG[SECTION_ID] || { tables: [], singleEntries: [] };
   const { data: tableData, loading, createRow, updateRow, deleteRow, refresh } =
     useGenericTables(projectId, SECTION_ID, config.tables || []);
@@ -119,6 +119,9 @@ const M8DecisionManagement = ({ projectId, isEditor }) => {
   return (
     <SectionLayout
       title="M8 - Decision Management & Release"
+      sectionId={sectionId}
+      sectionLabel={sectionName}
+      projectId={projectId}
       items={navigationItems}
     />
   );

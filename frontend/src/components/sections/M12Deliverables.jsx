@@ -4,7 +4,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import SectionLayout from "../SectionLayout";
 import { API } from "../../App";
 
-const M12Deliverables = ({ projectId, isEditor }) => {
+const M12Deliverables = ({ projectId, isEditor, sectionId, sectionName }) => {
   const [deliverables, setDeliverables] = useState([]);
   const [milestoneColumns, setMilestoneColumns] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -484,7 +484,15 @@ const M12Deliverables = ({ projectId, isEditor }) => {
     )
   };
 
-  return <SectionLayout title="M12 - List of Deliverables" items={[deliverablesItem]} />;
+  return (
+    <SectionLayout
+      title="M12 - List of Deliverables"
+      sectionId={sectionId}
+      sectionLabel={sectionName}
+      projectId={projectId}
+      items={[deliverablesItem]}
+    />
+  );
 };
 
 export default M12Deliverables;

@@ -4,7 +4,7 @@ import { API } from "../../App";
 import DataTable from "../DataTable";
 import SectionLayout from "../SectionLayout";
 
-const M3Definitions = ({ projectId, isEditor, sectionId, onSingleEntryDirtyChange }) => {
+const M3Definitions = ({ projectId, isEditor, sectionId, sectionName, onSingleEntryDirtyChange }) => {
   const [definitions, setDefinitions] = useState([]);
   const [singleFields, setSingleFields] = useState({
     reference_to_pif: "",
@@ -331,7 +331,15 @@ const M3Definitions = ({ projectId, isEditor, sectionId, onSingleEntryDirtyChang
     }
   ];
 
-  return <SectionLayout title="Definitions & References" items={navigationItems} />;
+  return (
+    <SectionLayout
+      title="Definitions & References"
+      sectionId={sectionId}
+      sectionLabel={sectionName}
+      projectId={projectId}
+      items={navigationItems}
+    />
+  );
 };
 
 export default M3Definitions;

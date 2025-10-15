@@ -1,14 +1,22 @@
-import React, { useMemo, useState, useEffect, useRef } from "react";
+import React, { createContext, useMemo, useState, useEffect, useRef } from "react";
+import { useGlobalSearch } from "../context/GlobalSearchContext";
+
+export const SectionItemContext = createContext(null);
 
 const SectionLayout = ({
   title,
+  projectId,
+  sectionId,
+  sectionLabel,
   items = [],
   defaultItemId
 }) => {
+  const { navigateToSection } = useGlobalSearch();
   const validItems = useMemo(
     () => items.filter((item) => item && item.id && typeof item.render === "function"),
     [items]
   );
+  const resolvedSectionLabel = sectionLabel || title || "Section";
   const computedDefaultId = useMemo(() => {
     if (defaultItemId && validItems.some((item) => item.id === defaultItemId)) {
       return defaultItemId;
@@ -94,7 +102,7 @@ const SectionLayout = ({
             <span className="section-shell__sidebar-title">Navigate Section</span>
             <button
               type="button"
-              className="btn btn-ghost btn-sm"
+              className="btn btn-ghost btn-sm section-shell__sidebar-close"
               onClick={() => setSidebarOpen(false)}
             >
               Close
@@ -104,18 +112,21 @@ const SectionLayout = ({
             <ul>
               {validItems.map((item) => (
                 <li key={item.id}>
-                  <button
-                    type="button"
+                  <a
+                    href={`#section-${item.id}`}
                     className={`section-shell__sidebar-link${
                       item.id === activeId ? " is-active" : ""
                     }`}
-                    onClick={() => handleSelect(item.id)}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      handleSelect(item.id);
+                    }}
                   >
                     <span className="section-shell__sidebar-link-label">{item.label}</span>
                     {item.type ? (
                       <span className="section-shell__sidebar-link-tag">{item.type}</span>
                     ) : null}
-                  </button>
+                  </a>
                 </li>
               ))}
             </ul>
@@ -135,6 +146,15 @@ const SectionLayout = ({
               {validItems.map((item, index) => {
                 const shouldRenderHeading =
                   item.heading !== undefined ? item.heading : item.type === "Table";
+                const contextValue = {
+                  projectId,
+                  sectionId,
+                  sectionLabel: resolvedSectionLabel,
+                  itemId: item.id,
+                  itemLabel: item.label,
+                  itemType: item.type,
+                  navigateToSection
+                };
 
                 return (
                   <section
@@ -154,7 +174,9 @@ const SectionLayout = ({
                     {shouldRenderHeading ? (
                       <h3 className="section-shell__content-heading">{item.label}</h3>
                     ) : null}
-                    <div className="section-shell__content-body">{item.render()}</div>
+                    <SectionItemContext.Provider value={contextValue}>
+                      <div className="section-shell__content-body">{item.render()}</div>
+                    </SectionItemContext.Provider>
                   </section>
                 );
               })}

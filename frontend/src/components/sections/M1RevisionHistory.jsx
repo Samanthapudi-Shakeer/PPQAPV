@@ -4,7 +4,7 @@ import { API } from "../../App";
 import DataTable from "../DataTable";
 import SectionLayout from "../SectionLayout";
 
-const M1RevisionHistory = ({ projectId, isEditor }) => {
+const M1RevisionHistory = ({ projectId, isEditor, sectionId, sectionName }) => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -89,7 +89,15 @@ const M1RevisionHistory = ({ projectId, isEditor }) => {
     }
   ];
 
-  return <SectionLayout title="Document History" items={navigationItems} />;
+  return (
+    <SectionLayout
+      title="Document History"
+      sectionId={sectionId}
+      sectionLabel={sectionName}
+      projectId={projectId}
+      items={navigationItems}
+    />
+  );
 };
 
 export default M1RevisionHistory;

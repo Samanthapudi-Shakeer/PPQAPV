@@ -4,7 +4,7 @@ import { API } from "../../App";
 import DataTable from "../DataTable";
 import SectionLayout from "../SectionLayout";
 
-const M2TOC = ({ projectId, isEditor }) => {
+const M2TOC = ({ projectId, isEditor, sectionId, sectionName }) => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -85,7 +85,15 @@ const M2TOC = ({ projectId, isEditor }) => {
     }
   ];
 
-  return <SectionLayout title="Table of Contents" items={navigationItems} />;
+  return (
+    <SectionLayout
+      title="Table of Contents"
+      sectionId={sectionId}
+      sectionLabel={sectionName}
+      projectId={projectId}
+      items={navigationItems}
+    />
+  );
 };
 
 export default M2TOC;

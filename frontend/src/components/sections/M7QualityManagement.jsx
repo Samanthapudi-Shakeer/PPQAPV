@@ -14,6 +14,7 @@ const M7QualityManagement = ({
   projectId,
   isEditor,
   sectionId,
+  sectionName,
   onSingleEntryDirtyChange
 }) => {
   const config = SECTION_CONFIG[SECTION_ID] || { tables: [], singleEntries: [] };
@@ -181,7 +182,15 @@ const M7QualityManagement = ({
     });
   }
 
-  return <SectionLayout title="M7 - Quality Management" items={navigationItems} />;
+  return (
+    <SectionLayout
+      title="M7 - Quality Management"
+      sectionId={sectionId}
+      sectionLabel={sectionName}
+      projectId={projectId}
+      items={navigationItems}
+    />
+  );
 };
 
 export default M7QualityManagement;

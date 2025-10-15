@@ -11,6 +11,7 @@ const M4ProjectOverview = ({
   projectId,
   isEditor,
   sectionId,
+  sectionName,
   onSingleEntryDirtyChange
 }) => {
   const [projectDetails, setProjectDetails] = useState(null);
@@ -415,7 +416,13 @@ const M4ProjectOverview = ({
   ];
 
   return (
-    <SectionLayout title="Project Overview & Requirements" items={navigationItems} />
+    <SectionLayout
+      title="Project Overview & Requirements"
+      sectionId={sectionId}
+      sectionLabel={sectionName}
+      projectId={projectId}
+      items={navigationItems}
+    />
   );
 };
 

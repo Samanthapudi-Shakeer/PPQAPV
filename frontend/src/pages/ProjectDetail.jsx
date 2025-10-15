@@ -28,7 +28,7 @@ const ProjectDetail = () => {
   const [error, setError] = useState("");
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const isEditor = ["admin", "editor"].includes(currentUser.role);
-  const { searchTerm } = useGlobalSearch();
+  const { searchTerm, registerSectionNavigator } = useGlobalSearch();
 
   useEffect(() => {
     fetchProject();
@@ -74,10 +74,10 @@ const ProjectDetail = () => {
     });
   }, []);
 
-  const handleTabClick = useCallback(
+  const attemptTabChange = useCallback(
     (nextTab) => {
-      if (nextTab === activeTab) {
-        return;
+      if (!nextTab || nextTab === activeTab) {
+        return true;
       }
 
       if (singleEntryDirtySections[activeTab]) {
@@ -86,14 +86,47 @@ const ProjectDetail = () => {
         );
 
         if (!confirmLeave) {
-          return;
+          return false;
         }
       }
 
       setActiveTab(nextTab);
+      return true;
     },
     [activeTab, singleEntryDirtySections]
   );
+
+  const handleTabClick = useCallback(
+    (nextTab) => {
+      attemptTabChange(nextTab);
+    },
+    [attemptTabChange]
+  );
+
+  const navigateWithinProject = useCallback(
+    async (nextSectionId) => {
+      if (!nextSectionId) {
+        return;
+      }
+
+      const didChange = attemptTabChange(nextSectionId);
+      if (!didChange) {
+        throw new Error("Navigation cancelled");
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 260));
+    },
+    [attemptTabChange]
+  );
+
+  useEffect(() => {
+    if (!registerSectionNavigator) {
+      return undefined;
+    }
+
+    const unregister = registerSectionNavigator({ navigate: navigateWithinProject });
+    return unregister;
+  }, [registerSectionNavigator, navigateWithinProject]);
 
   if (loading) {
     return (

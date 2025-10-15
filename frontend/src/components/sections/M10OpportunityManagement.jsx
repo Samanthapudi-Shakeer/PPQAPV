@@ -8,7 +8,7 @@ import { SECTION_CONFIG } from "../../sectionConfig";
 
 const SECTION_ID = "M10";
 
-const M10OpportunityManagement = ({ projectId, isEditor }) => {
+const M10OpportunityManagement = ({ projectId, isEditor, sectionId, sectionName }) => {
   const config = SECTION_CONFIG[SECTION_ID] || { tables: [] };
   const tables = useMemo(() => config.tables || [], [config.tables]);
   const [activeTableKey, setActiveTableKey] = useState(() =>
@@ -127,7 +127,15 @@ const M10OpportunityManagement = ({ projectId, isEditor }) => {
     });
   }
 
-  return <SectionLayout title="M10 - Opportunity Management" items={navigationItems} />;
+  return (
+    <SectionLayout
+      title="M10 - Opportunity Management"
+      sectionId={sectionId}
+      sectionLabel={sectionName}
+      projectId={projectId}
+      items={navigationItems}
+    />
+  );
 };
 
 export default M10OpportunityManagement;

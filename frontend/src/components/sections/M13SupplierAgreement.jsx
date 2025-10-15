@@ -15,6 +15,7 @@ const M13SupplierAgreement = ({
   projectId,
   isEditor,
   sectionId,
+  sectionName,
   onSingleEntryDirtyChange
 }) => {
   const config = SECTION_CONFIG[SECTION_ID] || { tables: [], singleEntries: [] };
@@ -184,7 +185,15 @@ const M13SupplierAgreement = ({
     });
   }
 
-  return <SectionLayout title="M13 - Supplier Agreement Management" items={navigationItems} />;
+  return (
+    <SectionLayout
+      title="M13 - Supplier Agreement Management"
+      sectionId={sectionId}
+      sectionLabel={sectionName}
+      projectId={projectId}
+      items={navigationItems}
+    />
+  );
 };
 
 export default M13SupplierAgreement;

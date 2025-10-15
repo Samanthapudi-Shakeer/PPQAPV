@@ -1,7 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useContext, useEffect, useMemo, useState } from "react";
 import { ArrowDownAZ, ArrowUpAZ, ArrowUpDown, Check, Pencil, PlusCircle, Trash2, XCircle } from "lucide-react";
 import { useGlobalSearch } from "../context/GlobalSearchContext";
 import ColumnVisibilityMenu from "./ColumnVisibilityMenu";
+import { SectionItemContext } from "./SectionLayout";
+import { buildTableSearchItems } from "../utils/searchRegistry";
 
 const DATE_LABEL_REGEX = /\bdate\b/i;
 
@@ -57,8 +59,16 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
       return acc;
     }, {})
   );
-  const { searchTerm } = useGlobalSearch();
+  const { searchTerm, registerSource, navigateToSection } = useGlobalSearch();
+  const sectionContext = useContext(SectionItemContext);
   const normalizedSearch = searchTerm.trim().toLowerCase();
+  const anchorPrefix = useMemo(() => {
+    if (!sectionContext?.projectId || !sectionContext?.sectionId || !sectionContext?.itemId) {
+      return null;
+    }
+
+    return `search-${sectionContext.projectId}-${sectionContext.sectionId}-${sectionContext.itemId}`;
+  }, [sectionContext?.projectId, sectionContext?.sectionId, sectionContext?.itemId]);
 
   const columnLookup = useMemo(
     () =>
@@ -218,6 +228,43 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
     setShowAddModal(false);
   };
 
+  useEffect(() => {
+    if (!registerSource || !sectionContext?.projectId || !sectionContext?.sectionId || !sectionContext?.itemId) {
+      return undefined;
+    }
+
+    const sourceId = `${sectionContext.projectId}-${sectionContext.sectionId}-${sectionContext.itemId}`;
+
+    const unregister = registerSource({
+      id: sourceId,
+      getItems: () =>
+        buildTableSearchItems({
+          projectId: sectionContext.projectId,
+          sectionId: sectionContext.sectionId,
+          sectionLabel: sectionContext.sectionLabel,
+          tableId: sectionContext.itemId,
+          tableLabel: sectionContext.itemLabel,
+          rows: data,
+          columns,
+          navigateToSection,
+          anchorPrefix
+        })
+    });
+
+    return unregister;
+  }, [
+    registerSource,
+    sectionContext?.projectId,
+    sectionContext?.sectionId,
+    sectionContext?.itemId,
+    sectionContext?.itemLabel,
+    sectionContext?.sectionLabel,
+    data,
+    columns,
+    navigateToSection,
+    anchorPrefix
+  ]);
+
   return (
     <div>
       <div
@@ -307,13 +354,20 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
                 </td>
               </tr>
             ) : (
-              filteredAndSortedData.map((row) => (
-                <tr key={row.id}>
-                  {displayedColumns.map((col) => (
-                    <td key={col.key} data-label={col.label}>
-                      {editingId === row.id ? (
-                        <input
-                          type={isDateColumn(col) ? "date" : "text"}
+              filteredAndSortedData.map((row, index) => {
+                const rowKey = row.id ?? row._id ?? `index-${index}`;
+                return (
+                  <tr
+                    key={rowKey}
+                    id={anchorPrefix ? `${anchorPrefix}-row-${rowKey}` : undefined}
+                    data-search-table={sectionContext?.itemId || undefined}
+                    data-search-row={rowKey}
+                  >
+                    {displayedColumns.map((col) => (
+                      <td key={col.key} data-label={col.label}>
+                        {editingId === row.id ? (
+                          <input
+                            type={isDateColumn(col) ? "date" : "text"}
                           className="input"
                           style={{ padding: "0.5rem", fontSize: "0.875rem" }}
                           value={editData[col.key] ?? ""}
@@ -381,8 +435,8 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
                       )}
                     </td>
                   )}
-                </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>

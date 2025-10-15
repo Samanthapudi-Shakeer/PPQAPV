@@ -14,6 +14,7 @@ const M6MonitoringControl = ({
   projectId,
   isEditor,
   sectionId,
+  sectionName,
   onSingleEntryDirtyChange
 }) => {
   const config = SECTION_CONFIG[SECTION_ID] || { tables: [], singleEntries: [] };
@@ -187,6 +188,9 @@ const M6MonitoringControl = ({
   return (
     <SectionLayout
       title="M6 - Monitoring & Control"
+      sectionId={sectionId}
+      sectionLabel={sectionName}
+      projectId={projectId}
       items={navigationItems}
     />
   );
