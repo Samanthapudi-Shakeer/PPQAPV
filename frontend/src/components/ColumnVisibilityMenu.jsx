@@ -27,7 +27,7 @@ const ColumnVisibilityMenu = ({ columns, visibleMap, onToggle, onShowAll }) => {
     <div className="column-controls" ref={menuRef}>
       <button
         type="button"
-        className={`btn btn-outline btn-icon column-toggle-button${isOpen ? " is-active" : ""}`}
+        className={`btn btn-outline column-toggle-button${isOpen ? " is-active" : ""}`}
         onClick={() => setIsOpen((current) => !current)}
         aria-expanded={isOpen}
         aria-haspopup="true"

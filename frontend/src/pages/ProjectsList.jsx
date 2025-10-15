@@ -127,8 +127,8 @@ const ProjectsList = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-50 via-white to-emerald-50">
-      <div className="mx-auto flex max-w-7xl flex-col gap-8 px-4 py-12 sm:px-8">
-        <section className="relative overflow-hidden rounded-3xl border border-sky-100 bg-white/80 p-8 text-slate-700 shadow-xl backdrop-blur-sm">
+      <div className="mx-auto flex w-full flex-col gap-10 px-6 py-10 sm:px-10">
+        <section className="relative overflow-hidden rounded-3xl bg-white/90 p-10 text-slate-700 shadow-xl backdrop-blur-sm">
           <div className="absolute -left-32 top-20 h-56 w-56 rounded-full bg-sky-200/60 blur-3xl" aria-hidden="true" />
           <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-emerald-200/50 blur-3xl" aria-hidden="true" />
           <div className="relative flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
@@ -150,7 +150,7 @@ const ProjectsList = () => {
               </div>
             </div>
 
-            <Card className="w-full max-w-sm border-slate-200 bg-white/90 text-slate-700 shadow-lg backdrop-blur-sm">
+            <Card className="w-full max-w-sm bg-white/95 text-slate-700 shadow-lg backdrop-blur-sm">
               <CardHeader className="pb-4">
                 <CardTitle className="text-base text-slate-900">
                   {currentUser.username || "Planner"}
@@ -212,7 +212,7 @@ const ProjectsList = () => {
             </Alert>
           )}
 
-          <Card className="border-slate-200 bg-white text-slate-800 shadow-xl">
+          <Card className="bg-white text-slate-800 shadow-xl">
             <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <CardTitle className="text-2xl font-semibold text-slate-900">Plan Dashboard</CardTitle>
