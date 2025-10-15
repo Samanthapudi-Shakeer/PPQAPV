@@ -68,15 +68,17 @@ const SingleEntryEditor = ({
                 <label className="label" style={{ display: "block", marginBottom: "0.5rem" }}>
                   Attach Diagram / Image
                 </label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={async (event) => {
-                    const file = event.target.files?.[0] || null;
-                    await onImageChange?.(entry.field, file);
-                  }}
-                  disabled={!isEditor || loading}
-                />
+                {isEditor ? (
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={async (event) => {
+                      const file = event.target.files?.[0] || null;
+                      await onImageChange?.(entry.field, file);
+                    }}
+                    disabled={!isEditor || loading}
+                  />
+                ) : null}
                 {value.image_data && (
                   <div style={{ marginTop: "0.75rem" }}>
                     <img
