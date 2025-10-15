@@ -34,6 +34,27 @@ const SECTION_DEFINITIONS = [
   { id: "M13", name: "Supplier Agreement", component: M13SupplierAgreement }
 ];
 
+const SECTION_DEFINITIONS = [
+  { id: "M1", name: "Revision History", component: M1RevisionHistory },
+  { id: "M2", name: "TOC", component: M2TOC },
+  { id: "M3", name: "Definitions & References", component: M3Definitions },
+  { id: "M4", name: "Project Introduction", component: M4ProjectOverview },
+  { id: "M5", name: "Resource Plan & Estimation", component: M5Resources },
+  { id: "M6", name: "PMC & Project Objectives", component: M6MonitoringControl },
+  { id: "M7", name: "Quality Management", component: M7QualityManagement },
+  { id: "M8", name: "DAR, Tailoring and Release Plan", component: M8DecisionManagement },
+  { id: "M9", name: "Risk Management", component: M9RiskManagement },
+  { id: "M10", name: "Opportunity Management", component: M10OpportunityManagement },
+  { id: "M11", name: "Configuration Management", component: M11ConfigurationManagement },
+  { id: "M12", name: "List of Deliverables", component: M12Deliverables },
+  { id: "M13", name: "Supplier Agreement", component: M13SupplierAgreement }
+];
+
+const SECTION_LOOKUP = SECTION_DEFINITIONS.reduce((accumulator, definition) => {
+  accumulator[definition.id] = definition;
+  return accumulator;
+}, {});
+
 const ProjectDetail = () => {
   const { projectId } = useParams();
   const navigate = useNavigate();
@@ -61,105 +82,11 @@ const ProjectDetail = () => {
     fetchProject();
   }, [fetchProject]);
 
-  const sections = useMemo(() => SECTION_DEFINITIONS, []);
-
-  const sectionMap = useMemo(() => {
-    const map = {};
-    sections.forEach((section) => {
-      map[section.id] = section;
-    });
-    return map;
-  }, [sections]);
-
-  const activeSection = sectionMap[activeTab];
+  const sections = SECTION_DEFINITIONS;
+  const activeSection = SECTION_LOOKUP[activeTab];
   const ActiveSectionComponent = activeSection?.component;
 
-  const handleSingleEntryDirtyChange = useCallback((sectionId, isDirty) => {
-    if (!sectionId) return;
-    setSingleEntryDirtySections((prev) => {
-      if (prev[sectionId] === isDirty) {
-        return prev;
-      }
-
-      return { ...prev, [sectionId]: isDirty };
-    });
-  }, []);
-
-  const attemptTabChange = useCallback(
-    (nextTab) => {
-      if (!nextTab || nextTab === activeTab) {
-        return true;
-      }
-
-      if (singleEntryDirtySections[activeTab]) {
-        const confirmLeave = window.confirm(
-          "You have unsaved single-entry changes in this section. Continue without saving?"
-        );
-
-        if (!confirmLeave) {
-          return false;
-        }
-      }
-
-      setActiveTab(nextTab);
-      return true;
-    },
-    [activeTab, singleEntryDirtySections]
-  );
-
-  const handleTabClick = useCallback(
-    (nextTab) => {
-      attemptTabChange(nextTab);
-    },
-    [attemptTabChange]
-  );
-
-  const navigateWithinProject = useCallback(
-    async (nextSectionId) => {
-      if (!nextSectionId) {
-        return;
-      }
-
-      const didChange = attemptTabChange(nextSectionId);
-      if (!didChange) {
-        throw new Error("Navigation cancelled");
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 260));
-    },
-    [attemptTabChange]
-  );
-
-  useEffect(() => {
-    if (!registerSectionNavigator) {
-      return undefined;
-    }
-
-    const unregister = registerSectionNavigator({ navigate: navigateWithinProject });
-    return unregister;
-  }, [registerSectionNavigator, navigateWithinProject]);
-
-  const hasUnsavedChanges = useMemo(
-    () => Object.values(singleEntryDirtySections).some(Boolean),
-    [singleEntryDirtySections]
-  );
-
-  const handleBackToProjects = useCallback(() => {
-    if (hasUnsavedChanges) {
-      const confirmLeave = window.confirm(
-        "You have unsaved single-entry changes in this project. Leave without saving?"
-      );
-      if (!confirmLeave) {
-        return;
-      }
-    }
-
-    navigate("/projects");
-  }, [hasUnsavedChanges, navigate]);
-
-  const ActiveSectionComponent = sections.find((s) => s.id === activeTab)?.component;
-
-  const handleSingleEntryDirtyChange = useCallback((sectionId, isDirty) => {
+  const updateSingleEntryDirtyState = useCallback((sectionId, isDirty) => {
     if (!sectionId) return;
     setSingleEntryDirtySections((prev) => {
       if (prev[sectionId] === isDirty) {
@@ -334,7 +261,7 @@ const ProjectDetail = () => {
               isEditor={isEditor}
               sectionId={activeTab}
               sectionName={activeSection?.name}
-              onSingleEntryDirtyChange={handleSingleEntryDirtyChange}
+              onSingleEntryDirtyChange={updateSingleEntryDirtyState}
             />
           )}
         </div>
