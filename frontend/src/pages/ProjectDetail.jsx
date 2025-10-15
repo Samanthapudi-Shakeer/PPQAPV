@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { API } from "../App";
+import { useGlobalSearch } from "../context/GlobalSearchContext";
 import M1RevisionHistory from "../components/sections/M1RevisionHistory";
 import M2TOC from "../components/sections/M2TOC";
 import M3Definitions from "../components/sections/M3Definitions";
@@ -25,6 +26,7 @@ const ProjectDetail = () => {
   const [error, setError] = useState("");
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const isEditor = ["admin", "editor"].includes(currentUser.role);
+  const { searchTerm } = useGlobalSearch();
 
   useEffect(() => {
     fetchProject();
@@ -79,56 +81,61 @@ const ProjectDetail = () => {
   const ActiveSectionComponent = sections.find(s => s.id === activeTab)?.component;
 
   return (
-    <div className="page-container">
-      <div style={{ maxWidth: "1600px", margin: "0 auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem", flexWrap: "wrap", gap: "1rem" }}>
-          <div>
+    <div className="page-container project-detail-layout">
+      <div className="project-detail-header">
+        <div className="project-detail-heading">
+          <button
+            className="btn btn-outline btn-sm project-detail-back"
+            onClick={() => navigate("/projects")}
+            data-testid="back-to-projects"
+          >
+            ← Back to Projects
+          </button>
+          <h1 className="project-detail-title">Project Name : {project.name}</h1>
+          {project.description && (
+            <p className="project-detail-description">{project.description}</p>
+          )}
+        </div>
+        <div className="project-detail-role">
+          <span className={`badge badge-${currentUser.role}`}>
+            {currentUser.role} Mode
+          </span>
+        </div>
+      </div>
+
+      <div className="tabs-container project-detail-tabs">
+        <div className="tabs-header">
+          {sections.map((section) => (
             <button
-              className="btn btn-outline btn-sm"
-              onClick={() => navigate("/projects")}
-              style={{ marginBottom: "1rem" }}
-              data-testid="back-to-projects"
+              key={section.id}
+              className={`tab-button ${activeTab === section.id ? "active" : ""}`}
+              onClick={() => setActiveTab(section.id)}
+              data-testid={`tab-${section.id}`}
             >
-              ← Back to Projects
+              {section.name}
             </button>
-            <h1 style={{ fontSize: "2rem", fontWeight: "700", marginBottom: "0.5rem" }}>
-              Project Name : {project.name}
-            </h1>
-            {project.description && (
-              <p style={{ color: "#718096" }}>{project.description}</p>
-            )}
-          </div>
-          <div>
-            <span className={`badge badge-${currentUser.role}`} style={{ fontSize: "0.9rem", padding: "0.5rem 1rem" }}>
-              {currentUser.role} Mode
-            </span>
-          </div>
+          ))}
         </div>
 
-        <div className="tabs-container">
-          <div className="tabs-header">
-            {sections.map((section) => (
-              <button
-                key={section.id}
-                className={`tab-button ${activeTab === section.id ? "active" : ""}`}
-                onClick={() => setActiveTab(section.id)}
-                data-testid={`tab-${section.id}`}
-              >
-                {section.name}
-              </button>
-            ))}
-          </div>
-
-          <div className="tab-content">
-            {ActiveSectionComponent && (
-              <ActiveSectionComponent
-                projectId={projectId}
-                isEditor={isEditor}
-                sectionId={activeTab}
-                sectionName={sections.find(s => s.id === activeTab)?.name}
-              />
+        <div className="tab-content">
+          <div className="tab-content-header">
+            <h2 className="section-title" data-testid="section-heading">
+              {sections.find((s) => s.id === activeTab)?.name || "Section"}
+            </h2>
+            {searchTerm && (
+              <p className="search-hint">
+                Filtering section content for <strong>"{searchTerm}"</strong>
+              </p>
             )}
           </div>
+          {ActiveSectionComponent && (
+            <ActiveSectionComponent
+              projectId={projectId}
+              isEditor={isEditor}
+              sectionId={activeTab}
+              sectionName={sections.find((s) => s.id === activeTab)?.name}
+            />
+          )}
         </div>
       </div>
     </div>
