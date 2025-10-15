@@ -968,6 +968,59 @@ body {
   overflow-y: auto;
 }
 
+.section-tab-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.section-tab-strip {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+}
+
+.section-tab-strip::-webkit-scrollbar {
+  height: 6px;
+}
+
+.section-tab-strip::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.section-tab-strip::-webkit-scrollbar-thumb {
+  background-color: rgba(31, 58, 95, 0.25);
+  border-radius: 9999px;
+}
+
+.section-tab-strip .tab-button {
+  padding: 0.65rem 1.25rem;
+  border-radius: 9999px;
+}
+
+.section-tab-panel {
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.1);
+  padding: 1.75rem;
+}
+
+.section-tab-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
+.section-tab-panel-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
 .empty-state {
   padding: 3rem;
   text-align: center;
