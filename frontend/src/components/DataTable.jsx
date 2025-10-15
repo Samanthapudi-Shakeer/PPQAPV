@@ -1,15 +1,7 @@
-import React, { useMemo, useState } from "react";
-import {
-  ArrowDownAZ,
-  ArrowUpAZ,
-  ArrowUpDown,
-  Check,
-  Pencil,
-  PlusCircle,
-  Trash2,
-  XCircle
-} from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { ArrowDownAZ, ArrowUpAZ, ArrowUpDown, Check, Pencil, PlusCircle, Trash2, XCircle } from "lucide-react";
 import { useGlobalSearch } from "../context/GlobalSearchContext";
+import ColumnVisibilityMenu from "./ColumnVisibilityMenu";
 
 const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButtonText = "Add Row" }) => {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
@@ -17,8 +9,26 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
   const [editData, setEditData] = useState({});
   const [showAddModal, setShowAddModal] = useState(false);
   const [newRowData, setNewRowData] = useState({});
+  const [visibleColumns, setVisibleColumns] = useState(() =>
+    columns.reduce((acc, column) => {
+      acc[column.key] = true;
+      return acc;
+    }, {})
+  );
   const { searchTerm } = useGlobalSearch();
   const normalizedSearch = searchTerm.trim().toLowerCase();
+
+  useEffect(() => {
+    setVisibleColumns((current) => {
+      const nextState = {};
+
+      columns.forEach((column) => {
+        nextState[column.key] = current[column.key] !== false;
+      });
+
+      return nextState;
+    });
+  }, [columns]);
 
   const handleSort = (columnKey) => {
     setSortConfig((current) => {
@@ -74,6 +84,33 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
     });
   }, [columns, data, normalizedSearch, sortConfig]);
 
+  const toggleColumnVisibility = (columnKey) => {
+    setVisibleColumns((current) => {
+      const visibleCount = columns.reduce((total, column) => {
+        return total + (current[column.key] !== false ? 1 : 0);
+      }, 0);
+
+      const isVisible = current[columnKey] !== false;
+
+      if (isVisible && visibleCount === 1) {
+        return current;
+      }
+
+      return { ...current, [columnKey]: isVisible ? false : true };
+    });
+  };
+
+  const showAllColumns = () => {
+    setVisibleColumns(
+      columns.reduce((acc, column) => {
+        acc[column.key] = true;
+        return acc;
+      }, {})
+    );
+  };
+
+  const displayedColumns = columns.filter((column) => visibleColumns[column.key] !== false);
+
   const handleEdit = (row) => {
     setEditingId(row.id);
     setEditData({ ...row });
@@ -118,23 +155,31 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
             <span className="muted-text">Use the global search above to refine this table.</span>
           )}
         </div>
-        {isEditor && (
-          <button
-            className="btn btn-primary btn-icon"
-            onClick={() => setShowAddModal(true)}
-            data-testid="add-row-btn"
-            aria-label={addButtonText}
-          >
-            <PlusCircle size={18} aria-hidden="true" />
-          </button>
-        )}
+        <div className="table-actions">
+          <ColumnVisibilityMenu
+            columns={columns}
+            visibleMap={visibleColumns}
+            onToggle={toggleColumnVisibility}
+            onShowAll={showAllColumns}
+          />
+          {isEditor && (
+            <button
+              className="btn btn-primary btn-icon"
+              onClick={() => setShowAddModal(true)}
+              data-testid="add-row-btn"
+              aria-label={addButtonText}
+            >
+              <PlusCircle size={18} aria-hidden="true" />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="table-container">
         <table className="data-table">
           <thead>
             <tr>
-              {columns.map((col) => {
+              {displayedColumns.map((col) => {
                 const isSorted = sortConfig.key === col.key;
                 const SortIcon = !isSorted
                   ? ArrowUpDown
@@ -163,7 +208,7 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
             {filteredAndSortedData.length === 0 ? (
               <tr>
                 <td
-                  colSpan={columns.length + (isEditor ? 1 : 0)}
+                  colSpan={displayedColumns.length + (isEditor ? 1 : 0)}
                   style={{ textAlign: "center", padding: "2rem", color: "#4a5568" }}
                 >
                   {normalizedSearch
@@ -179,7 +224,7 @@ const DataTable = ({ columns, data, onAdd, onEdit, onDelete, isEditor, addButton
             ) : (
               filteredAndSortedData.map((row) => (
                 <tr key={row.id}>
-                  {columns.map((col) => (
+                  {displayedColumns.map((col) => (
                     <td key={col.key} data-label={col.label}>
                       {editingId === row.id ? (
                         <input

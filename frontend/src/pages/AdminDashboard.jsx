@@ -5,6 +5,7 @@ import { API } from "../App";
 import { useGlobalSearch } from "../context/GlobalSearchContext";
 import { ArrowDownAZ, ArrowUpAZ, ArrowUpDown, PlusCircle, Trash2, XCircle } from "lucide-react";
 import { broadcastSessionLogout } from "../utils/session";
+import ColumnVisibilityMenu from "../components/ColumnVisibilityMenu";
 
 const ROLE_ORDER = ["viewer", "editor", "admin"];
 
@@ -46,6 +47,12 @@ const AdminDashboard = () => {
   const [draggedUserId, setDraggedUserId] = useState(null);
   const [dropTargetRole, setDropTargetRole] = useState(null);
   const [updatingUserIds, setUpdatingUserIds] = useState({});
+  const [visibleUserColumns, setVisibleUserColumns] = useState(() =>
+    USER_COLUMNS.reduce((acc, column) => {
+      acc[column.key] = true;
+      return acc;
+    }, {})
+  );
   const navigate = useNavigate();
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const { searchTerm, setSearchTerm } = useGlobalSearch();
@@ -138,6 +145,33 @@ const AdminDashboard = () => {
       })
     );
   }, [normalizedSearch, users]);
+
+  const toggleUserColumnVisibility = (columnKey) => {
+    setVisibleUserColumns((current) => {
+      const visibleCount = USER_COLUMNS.reduce((total, column) => {
+        return total + (current[column.key] !== false ? 1 : 0);
+      }, 0);
+
+      const isVisible = current[columnKey] !== false;
+
+      if (isVisible && visibleCount === 1) {
+        return current;
+      }
+
+      return { ...current, [columnKey]: isVisible ? false : true };
+    });
+  };
+
+  const showAllUserColumns = () => {
+    setVisibleUserColumns(
+      USER_COLUMNS.reduce((acc, column) => {
+        acc[column.key] = true;
+        return acc;
+      }, {})
+    );
+  };
+
+  const displayedUserColumns = USER_COLUMNS.filter((column) => visibleUserColumns[column.key] !== false);
 
   const userTableData = useMemo(() => {
     const { key, direction } = userSort;
@@ -334,27 +368,37 @@ const AdminDashboard = () => {
           <div className="user-directory-header">
             <h3 className="section-subtitle">User Directory</h3>
             <div className="user-directory-actions">
-              {searchTerm ? (
+              <div className="user-directory-messages">
+                {searchTerm ? (
+                  <button
+                    type="button"
+                    className="clear-search-button"
+                    onClick={() => setSearchTerm("")}
+                    data-testid="clear-user-search"
+                  >
+                    <XCircle size={16} aria-hidden="true" />
+                    <span>Clear global search</span>
+                  </button>
+                ) : (
+                  <span className="muted-text">Use the global search above to filter users.</span>
+                )}
+              </div>
+              <div className="user-directory-tools">
+                <ColumnVisibilityMenu
+                  columns={USER_COLUMNS}
+                  visibleMap={visibleUserColumns}
+                  onToggle={toggleUserColumnVisibility}
+                  onShowAll={showAllUserColumns}
+                />
                 <button
-                  type="button"
-                  className="clear-search-button"
-                  onClick={() => setSearchTerm("")}
-                  data-testid="clear-user-search"
+                  className="btn btn-primary"
+                  onClick={() => setShowModal(true)}
+                  data-testid="add-user-btn"
                 >
-                  <XCircle size={16} aria-hidden="true" />
-                  <span>Clear global search</span>
+                  <PlusCircle size={18} aria-hidden="true" />
+                  <span>Create user</span>
                 </button>
-              ) : (
-                <span className="muted-text">Use the global search above to filter users.</span>
-              )}
-              <button
-                className="btn btn-primary"
-                onClick={() => setShowModal(true)}
-                data-testid="add-user-btn"
-              >
-                <PlusCircle size={18} aria-hidden="true" />
-                <span>Create user</span>
-              </button>
+              </div>
             </div>
           </div>
 
@@ -365,7 +409,7 @@ const AdminDashboard = () => {
               <table className="data-table">
                 <thead>
                   <tr>
-                    {USER_COLUMNS.map((column) => {
+                    {displayedUserColumns.map((column) => {
                       const isSorted = userSort.key === column.key;
                       const SortIcon = !isSorted
                         ? ArrowUpDown
@@ -393,7 +437,7 @@ const AdminDashboard = () => {
                 <tbody>
                   {userTableData.length === 0 ? (
                     <tr>
-                      <td colSpan={USER_COLUMNS.length + 1} className="table-empty-state">
+                      <td colSpan={displayedUserColumns.length + 1} className="table-empty-state">
                         {users.length === 0
                           ? "No users available yet."
                           : "No users match the current filters."}
@@ -402,7 +446,7 @@ const AdminDashboard = () => {
                   ) : (
                     userTableData.map((user) => (
                       <tr key={user.id}>
-                        {USER_COLUMNS.map((column) => {
+                        {displayedUserColumns.map((column) => {
                           let content = user[column.key];
 
                           if (column.key === "role") {
