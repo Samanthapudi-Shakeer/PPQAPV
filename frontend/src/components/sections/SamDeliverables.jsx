@@ -189,7 +189,7 @@ const SamDeliverables = ({ projectId, isEditor }) => {
         </div>
       )}
 
-      <div className="table-container" style={{ overflowX: "auto" }}>
+      <div className="table-container">
         <table className="data-table">
           <thead>
             <tr>

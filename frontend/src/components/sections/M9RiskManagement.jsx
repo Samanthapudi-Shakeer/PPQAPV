@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { API } from "../../App";
 import DataTable from "../DataTable";
@@ -9,8 +9,28 @@ const SECTION_ID = "M9";
 
 const M9RiskManagement = ({ projectId, isEditor }) => {
   const config = SECTION_CONFIG[SECTION_ID] || { tables: [] };
+  const tables = useMemo(() => config.tables || [], [config.tables]);
+  const [activeTableKey, setActiveTableKey] = useState(() =>
+    tables.length ? tables[0].key : null
+  );
   const { data: tableData, loading, createRow, updateRow, deleteRow, refresh } =
     useGenericTables(projectId, SECTION_ID, config.tables || []);
+
+  useEffect(() => {
+    if (!tables.length) {
+      if (activeTableKey !== null) {
+        setActiveTableKey(null);
+      }
+      return;
+    }
+    const hasActive = tables.some((table) => table.key === activeTableKey);
+    if (!hasActive) {
+      setActiveTableKey(tables[0].key);
+    }
+  }, [tables, activeTableKey]);
+
+  const activeTable = tables.find((table) => table.key === activeTableKey) || null;
+  const activeRows = activeTable ? tableData[activeTable.key] || [] : [];
 
   const handleAddRow = async (tableKey, payload) => {
     try {
@@ -68,46 +88,49 @@ const M9RiskManagement = ({ projectId, isEditor }) => {
         loading ? (
           <div className="loading">Loading tables...</div>
         ) : (
-          <div style={{ display: "grid", gap: "2rem" }}>
-            {config.tables.map((table) => {
-              const rows = tableData[table.key] || [];
-              return (
-                <div key={table.key} className="card" style={{ padding: "1.5rem" }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginBottom: "1rem",
-                      gap: "1rem",
-                      flexWrap: "wrap"
-                    }}
-                  >
-                    <h3 style={{ fontSize: "1.2rem", fontWeight: "600" }}>
-                      {table.title || table.name || table.key}
-                    </h3>
-                    {isEditor && rows.length === 0 && table.prefillRows && (
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => handlePrefillRows(table)}
-                      >
-                        Populate Defaults
-                      </button>
-                    )}
-                  </div>
+          <div className="section-tab-wrapper">
+            <div className="section-tab-strip" role="tablist" aria-label="Risk management tables">
+              {tables.map((table) => (
+                <button
+                  key={table.key}
+                  type="button"
+                  role="tab"
+                  className={`tab-button ${activeTableKey === table.key ? "active" : ""}`}
+                  aria-selected={activeTableKey === table.key}
+                  onClick={() => setActiveTableKey(table.key)}
+                >
+                  {table.title || table.name || table.key}
+                </button>
+              ))}
+            </div>
 
-                  <DataTable
-                    columns={table.columns}
-                    data={rows}
-                    onAdd={(newRow) => handleAddRow(table.key, newRow)}
-                    onEdit={(rowId, updated) => handleEditRow(table.key, rowId, updated)}
-                    onDelete={(rowId) => handleDeleteRow(table.key, rowId)}
-                    isEditor={isEditor}
-                    addButtonText={table.addButtonText || "Add Record"}
-                  />
+            {activeTable && (
+              <div className="section-tab-panel" role="tabpanel">
+                <div className="section-tab-panel-header">
+                  <h3 className="section-tab-panel-title">
+                    {activeTable.title || activeTable.name || activeTable.key}
+                  </h3>
+                  {isEditor && activeRows.length === 0 && activeTable.prefillRows && (
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => handlePrefillRows(activeTable)}
+                    >
+                      Populate Defaults
+                    </button>
+                  )}
                 </div>
-              );
-            })}
+
+                <DataTable
+                  columns={activeTable.columns}
+                  data={activeRows}
+                  onAdd={(newRow) => handleAddRow(activeTable.key, newRow)}
+                  onEdit={(rowId, updated) => handleEditRow(activeTable.key, rowId, updated)}
+                  onDelete={(rowId) => handleDeleteRow(activeTable.key, rowId)}
+                  isEditor={isEditor}
+                  addButtonText={activeTable.addButtonText || "Add Record"}
+                />
+              </div>
+            )}
           </div>
         )
       ) : (
