@@ -1,20 +1,25 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { InfoIcon, UndoDot } from "lucide-react";
 import { API } from "../../App";
 import DataTable from "../DataTable";
+import SectionLayout from "../SectionLayout";
 
-const M3Definitions = ({ projectId, isEditor }) => {
+const M3Definitions = ({ projectId, isEditor, sectionId, onSingleEntryDirtyChange }) => {
   const [definitions, setDefinitions] = useState([]);
   const [singleFields, setSingleFields] = useState({
     reference_to_pif: "",
     reference_to_other_documents: "",
     plan_for_other_resources: ""
   });
-  const [showInfo, setShowInfo] = useState({
-    pif: false,
-    otherDocs: false,
-    otherResources: false,
+  const [initialSingleFields, setInitialSingleFields] = useState({
+    reference_to_pif: "",
+    reference_to_other_documents: "",
+    plan_for_other_resources: ""
+  });
+  const [dirtyFields, setDirtyFields] = useState({
+    reference_to_pif: false,
+    reference_to_other_documents: false,
+    plan_for_other_resources: false
   });
   const [loading, setLoading] = useState(true);
 
@@ -32,16 +37,47 @@ const M3Definitions = ({ projectId, isEditor }) => {
       ]);
 
       setDefinitions(defsResponse.data);
-      setSingleFields({
+      const nextFields = {
         reference_to_pif: field1.data?.content || "",
         reference_to_other_documents: field2.data?.content || "",
         plan_for_other_resources: field3.data?.content || ""
+      };
+
+      setSingleFields(nextFields);
+      setInitialSingleFields(nextFields);
+      setDirtyFields({
+        reference_to_pif: false,
+        reference_to_other_documents: false,
+        plan_for_other_resources: false
       });
     } catch (err) {
       console.error("Failed to fetch definitions", err);
     } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    if (onSingleEntryDirtyChange && sectionId) {
+      const hasUnsaved = Object.values(dirtyFields).some(Boolean);
+      onSingleEntryDirtyChange(sectionId, hasUnsaved);
+    }
+  }, [dirtyFields, onSingleEntryDirtyChange, sectionId]);
+
+  useEffect(() => {
+    return () => {
+      if (onSingleEntryDirtyChange && sectionId) {
+        onSingleEntryDirtyChange(sectionId, false);
+      }
+    };
+  }, [onSingleEntryDirtyChange, sectionId]);
+
+  const handleSingleFieldChange = (fieldName, value) => {
+    setSingleFields((prev) => ({ ...prev, [fieldName]: value }));
+    setDirtyFields((prev) => ({
+      ...prev,
+      [fieldName]: value !== (initialSingleFields[fieldName] || "")
+    }));
   };
 
   const handleAddDefinition = async (newData) => {
@@ -80,6 +116,8 @@ const M3Definitions = ({ projectId, isEditor }) => {
         content
       });
       alert("Saved successfully!");
+      setInitialSingleFields((prev) => ({ ...prev, [fieldName]: content }));
+      setDirtyFields((prev) => ({ ...prev, [fieldName]: false }));
     } catch (err) {
       alert("Failed to save");
     }
@@ -90,148 +128,210 @@ const M3Definitions = ({ projectId, isEditor }) => {
     { key: "definition", label: "Definition" }
   ];
 
-  if (loading) {
-    return <div className="loading">Loading...</div>;
-  }
-
-  return (
-    <div>
-      <h2 style={{ fontSize: "1.5rem", fontWeight: "600", marginBottom: "1.5rem" }}>
-        Definitions & References
-      </h2>
-
-      <div style={{ marginBottom: "2rem" }}>
-        <h3 style={{ fontSize: "1.2rem", fontWeight: "600", marginBottom: "1rem" }}>
-          Definitions & Acronyms
-        </h3>
-        <button onClick={() => setShowInfo(prev => ({ ...prev, pif: !prev.pif }))} className="px-3 py-1 bg-blue-500 rounded hover:bg-blue-600 text-sm">
-            {showInfo.pif ? <UndoDot /> : <InfoIcon />}
-          </button>
-          {showInfo.pif && (
-          <div className="mb-4 p-3 border rounded bg-gray-50">
-            	Definitions of all terms, acronyms and abbreviations required to properly interpret this plan to be stated here				
+  const navigationItems = [
+    {
+      id: "table-definitions",
+      label: "Definitions & Acronyms",
+      type: "Table",
+      render: () => (
+        loading ? (
+          <div className="loading">Loading...</div>
+        ) : (
+          <div style={{ display: "grid", gap: "1rem" }}>
+            <p className="muted-text">
+              Definitions of all terms, acronyms, and abbreviations required to properly interpret this plan.
+            </p>
+            <DataTable
+              columns={definitionColumns}
+              data={definitions}
+              onAdd={handleAddDefinition}
+              onEdit={handleEditDefinition}
+              onDelete={handleDeleteDefinition}
+              isEditor={isEditor}
+              addButtonText="Add Definition"
+            />
           </div>
-        )}
-        <DataTable
-          columns={definitionColumns}
-          data={definitions}
-          onAdd={handleAddDefinition}
-          onEdit={handleEditDefinition}
-          onDelete={handleDeleteDefinition}
-          isEditor={isEditor}
-          addButtonText="Add Definition"
-        />
-      </div>
-
-      <div className="card" style={{ background: "#f7fafc", padding: "1.5rem", marginBottom: "1.5rem" }}>
-        <div className="flex justify-between items-center mb-4">
-          <h3 style={{ fontSize: "1.1rem", fontWeight: "600" }}>
-            Reference to PIF
-          </h3>
-        </div>
-        <textarea
-          className="input"
-          rows="4"
-          value={singleFields.reference_to_pif}
-          onChange={(e) => setSingleFields({ ...singleFields, reference_to_pif: e.target.value })}
-          disabled={!isEditor}
-          placeholder="Enter reference to PIF..."
-          data-testid="reference-to-pif"
-        />
-        {isEditor && (
-          <button
-            className="btn btn-primary btn-sm"
-            style={{ marginTop: "0.75rem" }}
-            onClick={() => handleSaveSingleField("reference_to_pif", singleFields.reference_to_pif)}
-            data-testid="save-reference-to-pif"
-          >
-            Save
-          </button>
-        )}
-      </div>
-
-      <div className="card" style={{ background: "#f7fafc", padding: "1.5rem" }}>
-        <div className="flex justify-between items-center mb-4">
-          <h3 style={{ fontSize: "1.1rem", fontWeight: "600" }}>
-            Reference for Other Plans
-          </h3>
-          <button onClick={() => setShowInfo(prev => ({ ...prev, otherResources: !prev.otherResources }))} className="px-3 py-1 bg-blue-500 rounded hover:bg-blue-600 text-sm">
-            {showInfo.otherResources ? <UndoDot /> : <InfoIcon />}
-          </button>
-        </div>
-        {showInfo.otherResources && (
-          <div className="mb-4 p-3 border rounded bg-gray-50">
-            <ol>
-	<li>Link/location to MPP or other Scheduling and tracking mechanism</li>	
-	<li>Link/Location for Test Plans</li>
-	<li>Reference of Development Interface Agreement document</li>
-  </ol>				
+        )
+      )
+    },
+    {
+      id: "single-reference-to-pif",
+      label: "Reference to PIF",
+      type: "Single Entry",
+      render: () => (
+        loading ? (
+          <div className="loading">Loading...</div>
+        ) : (
+          <div className="card" style={{ background: "#f7fafc", padding: "1.5rem" }}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 style={{ fontSize: "1.1rem", fontWeight: "600" }}>Reference to PIF</h3>
+            </div>
+            {isEditor ? (
+              <>
+                <textarea
+                  className="input"
+                  rows="4"
+                  value={singleFields.reference_to_pif}
+                  onChange={(e) => handleSingleFieldChange("reference_to_pif", e.target.value)}
+                  placeholder="Enter reference to PIF..."
+                  data-testid="reference-to-pif"
+                />
+                <button
+                  className="btn btn-primary btn-sm"
+                  style={{ marginTop: "0.75rem" }}
+                  onClick={() =>
+                    handleSaveSingleField("reference_to_pif", singleFields.reference_to_pif)
+                  }
+                  data-testid="save-reference-to-pif"
+                  disabled={!dirtyFields.reference_to_pif}
+                >
+                  Save
+                </button>
+              </>
+            ) : (
+              <p
+                className={`single-entry-viewer-content${
+                  singleFields.reference_to_pif?.trim() ? "" : " is-empty"
+                }`}
+              >
+                {singleFields.reference_to_pif?.trim()
+                  ? singleFields.reference_to_pif
+                  : "No reference to PIF provided yet."}
+              </p>
+            )}
           </div>
-        )}
-        <textarea
-          className="input"
-          rows="4"
-          value={singleFields.plan_for_other_resources}
-          onChange={(e) => setSingleFields({ ...singleFields, plan_for_other_resources: e.target.value })}
-          disabled={!isEditor}
-          placeholder="Enter reference to other plans..."
-          data-testid="plan-for-other-resources"
-        />
-        {isEditor && (
-          <button
-            className="btn btn-primary btn-sm"
-            style={{ marginTop: "0.75rem" }}
-            onClick={() => handleSaveSingleField("plan_for_other_resources", singleFields.plan_for_other_resources)}
-            data-testid="save-plan-for-other-resources"
-          >
-            Save
-          </button>
-        )}
-      </div>
-
-      <div className="card" style={{ background: "#f7fafc", padding: "1.5rem", marginBottom: "1.5rem" }}>
-        <div className="flex justify-between items-center mb-4">
-          <h3 style={{ fontSize: "1.1rem", fontWeight: "600" }}>
-            Reference to Other Documents
-          </h3>
-          <button onClick={() => setShowInfo(prev => ({ ...prev, otherDocs: !prev.otherDocs }))} className="px-3 py-1 bg-blue-500 rounded hover:bg-blue-600 text-sm">
-            {showInfo.otherDocs ? <UndoDot /> : <InfoIcon />}
-          </button>
-        </div>
-        {showInfo.otherDocs && (
-          <div className="mb-4 p-3 border rounded bg-gray-50">
-			<ul>
-  <li>&lt;Link/Location to additional roles and responsibilities document&gt;</li>
-  <li>&lt;Link/Location to Process performance model workbook&gt;</li>
-  <li>&lt;Link/Location to Control chart workbook&gt;</li>
-</ul>
-
+        )
+      )
+    },
+    {
+      id: "single-other-resources",
+      label: "Reference to Other Resources",
+      type: "Single Entry",
+      render: () => (
+        loading ? (
+          <div className="loading">Loading...</div>
+        ) : (
+          <div className="card" style={{ background: "#f7fafc", padding: "1.5rem" }}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 style={{ fontSize: "1.1rem", fontWeight: "600" }}>
+                Reference to Other Resources
+              </h3>
+            </div>
+            <div className="info-card">
+              <ol>
+                <li>Link/location to MPP or other scheduling and tracking mechanisms</li>
+                <li>Link/location for test plans</li>
+                <li>Reference of Development Interface Agreement document</li>
+              </ol>
+            </div>
+            {isEditor ? (
+              <>
+                <textarea
+                  className="input"
+                  rows="4"
+                  value={singleFields.plan_for_other_resources}
+                  onChange={(e) =>
+                    handleSingleFieldChange("plan_for_other_resources", e.target.value)
+                  }
+                  placeholder="Enter reference to other resources..."
+                  data-testid="plan-for-other-resources"
+                />
+                <button
+                  className="btn btn-primary btn-sm"
+                  style={{ marginTop: "0.75rem" }}
+                  onClick={() =>
+                    handleSaveSingleField(
+                      "plan_for_other_resources",
+                      singleFields.plan_for_other_resources
+                    )
+                  }
+                  data-testid="save-plan-for-other-resources"
+                  disabled={!dirtyFields.plan_for_other_resources}
+                >
+                  Save
+                </button>
+              </>
+            ) : (
+              <p
+                className={`single-entry-viewer-content${
+                  singleFields.plan_for_other_resources?.trim() ? "" : " is-empty"
+                }`}
+              >
+                {singleFields.plan_for_other_resources?.trim()
+                  ? singleFields.plan_for_other_resources
+                  : "No reference to other resources provided yet."}
+              </p>
+            )}
           </div>
-        )}
-        <textarea
-          className="input"
-          rows="4"
-          value={singleFields.reference_to_other_documents}
-          onChange={(e) => setSingleFields({ ...singleFields, reference_to_other_documents: e.target.value })}
-          disabled={!isEditor}
-          placeholder="Enter reference to other documents..."
-          data-testid="reference-to-other-docs"
-        />
-        {isEditor && (
-          <button
-            className="btn btn-primary btn-sm"
-            style={{ marginTop: "0.75rem" }}
-            onClick={() => handleSaveSingleField("reference_to_other_documents", singleFields.reference_to_other_documents)}
-            data-testid="save-reference-to-other-docs"
-          >
-            Save
-          </button>
-        )}
-      </div>
+        )
+      )
+    },
+    {
+      id: "single-other-documents",
+      label: "Reference to Other Documents",
+      type: "Single Entry",
+      render: () => (
+        loading ? (
+          <div className="loading">Loading...</div>
+        ) : (
+          <div className="card" style={{ background: "#f7fafc", padding: "1.5rem" }}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 style={{ fontSize: "1.1rem", fontWeight: "600" }}>
+                Reference to Other Documents
+              </h3>
+            </div>
+            <div className="info-card">
+              <ul>
+                <li>&lt;Link/location to additional roles and responsibilities document&gt;</li>
+                <li>&lt;Link/location to process performance model workbook&gt;</li>
+                <li>&lt;Link/location to control chart workbook&gt;</li>
+              </ul>
+            </div>
+            {isEditor ? (
+              <>
+                <textarea
+                  className="input"
+                  rows="4"
+                  value={singleFields.reference_to_other_documents}
+                  onChange={(e) =>
+                    handleSingleFieldChange("reference_to_other_documents", e.target.value)
+                  }
+                  placeholder="Enter reference to other documents..."
+                  data-testid="reference-to-other-docs"
+                />
+                <button
+                  className="btn btn-primary btn-sm"
+                  style={{ marginTop: "0.75rem" }}
+                  onClick={() =>
+                    handleSaveSingleField(
+                      "reference_to_other_documents",
+                      singleFields.reference_to_other_documents
+                    )
+                  }
+                  data-testid="save-reference-to-other-docs"
+                  disabled={!dirtyFields.reference_to_other_documents}
+                >
+                  Save
+                </button>
+              </>
+            ) : (
+              <p
+                className={`single-entry-viewer-content${
+                  singleFields.reference_to_other_documents?.trim() ? "" : " is-empty"
+                }`}
+              >
+                {singleFields.reference_to_other_documents?.trim()
+                  ? singleFields.reference_to_other_documents
+                  : "No reference to other documents provided yet."}
+              </p>
+            )}
+          </div>
+        )
+      )
+    }
+  ];
 
-      
-    </div>
-  );
+  return <SectionLayout title="Definitions & References" items={navigationItems} />;
 };
 
 export default M3Definitions;
