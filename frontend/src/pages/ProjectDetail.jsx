@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { API } from "../App";
@@ -136,11 +136,29 @@ const ProjectDetail = () => {
     );
   }
 
+  const hasUnsavedChanges = useMemo(
+    () => Object.values(singleEntryDirtySections).some(Boolean),
+    [singleEntryDirtySections]
+  );
+
+  const handleBackToProjects = useCallback(() => {
+    if (hasUnsavedChanges) {
+      const confirmLeave = window.confirm(
+        "You have unsaved single-entry changes in this project. Leave without saving?"
+      );
+      if (!confirmLeave) {
+        return;
+      }
+    }
+
+    navigate("/projects");
+  }, [hasUnsavedChanges, navigate]);
+
   if (error || !project) {
     return (
       <div className="page-container">
         <div className="error-message">{error || "Project not found"}</div>
-        <button className="btn btn-primary" onClick={() => navigate("/projects")}>
+        <button type="button" className="btn btn-primary" onClick={handleBackToProjects}>
           Back to Projects
         </button>
       </div>
@@ -152,8 +170,9 @@ const ProjectDetail = () => {
       <div className="project-detail-header">
         <div className="project-detail-heading">
           <button
+            type="button"
             className="btn btn-outline btn-sm project-detail-back"
-            onClick={() => navigate("/projects")}
+            onClick={handleBackToProjects}
             data-testid="back-to-projects"
           >
             ← Back to Projects

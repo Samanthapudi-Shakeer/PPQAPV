@@ -34,6 +34,14 @@ const normalizeSlValue = (value) => {
   return String(value).trim().toLowerCase();
 };
 
+const sanitizeSlNoInput = (value) => {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  return String(value).replace(/\D+/g, "");
+};
+
 const resolveRowIdentifier = (row) => {
   if (!row) return null;
   if (row.id !== undefined && row.id !== null) return String(row.id);
@@ -132,13 +140,22 @@ const M12Deliverables = ({ projectId, isEditor, sectionId, sectionName }) => {
   };
 
   const handleAddDeliverable = async () => {
-    if (hasDuplicateSlNumber(deliverables, newDeliverable.sl_no)) {
+    const sanitizedSlNo = sanitizeSlNoInput(newDeliverable.sl_no);
+
+    if (sanitizedSlNo !== newDeliverable.sl_no) {
+      setNewDeliverable((current) => ({ ...current, sl_no: sanitizedSlNo }));
+    }
+
+    if (hasDuplicateSlNumber(deliverables, sanitizedSlNo)) {
       alert("Sl. No must be unique. Please provide a different value before saving.");
       return;
     }
 
     try {
-      await axios.post(`${API}/projects/${projectId}/deliverables`, newDeliverable);
+      await axios.post(`${API}/projects/${projectId}/deliverables`, {
+        ...newDeliverable,
+        sl_no: sanitizedSlNo
+      });
       setNewDeliverable({
         sl_no: "",
         work_product: "",
@@ -155,14 +172,23 @@ const M12Deliverables = ({ projectId, isEditor, sectionId, sectionName }) => {
   };
 
   const handleEditDeliverable = async (id) => {
-    if (hasDuplicateSlNumber(deliverables, editData.sl_no, id)) {
+    const sanitizedSlNo = sanitizeSlNoInput(editData.sl_no);
+
+    if (sanitizedSlNo !== editData.sl_no) {
+      setEditData((current) => ({ ...current, sl_no: sanitizedSlNo }));
+    }
+
+    if (hasDuplicateSlNumber(deliverables, sanitizedSlNo, id)) {
       alert("Sl. No must be unique. Please provide a different value before saving.");
       return;
     }
 
     try {
       const { id: _, project_id, ...dataToSend } = editData;
-      await axios.put(`${API}/projects/${projectId}/deliverables/${id}`, dataToSend);
+      await axios.put(`${API}/projects/${projectId}/deliverables/${id}`, {
+        ...dataToSend,
+        sl_no: sanitizedSlNo
+      });
       setEditingId(null);
       setEditData({});
       fetchData();
@@ -297,7 +323,14 @@ const M12Deliverables = ({ projectId, isEditor, sectionId, sectionName }) => {
                           className="input"
                           style={{ padding: "0.5rem", fontSize: "0.875rem" }}
                           value={editData.sl_no || ""}
-                          onChange={(e) => setEditData({ ...editData, sl_no: e.target.value })}
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          onChange={(e) =>
+                            setEditData((current) => ({
+                              ...current,
+                              sl_no: sanitizeSlNoInput(e.target.value)
+                            }))
+                          }
                         />
                       ) : deliv.sl_no || "-"}</td>
                       <td>{editingId === deliv.id ? (
@@ -377,7 +410,7 @@ const M12Deliverables = ({ projectId, isEditor, sectionId, sectionName }) => {
                                 className="btn btn-outline btn-icon"
                                 onClick={() => {
                                   setEditingId(deliv.id);
-                                  setEditData({ ...deliv });
+                                  setEditData({ ...deliv, sl_no: sanitizeSlNoInput(deliv.sl_no) });
                                 }}
                                 aria-label={`Edit deliverable ${deliv.work_product || deliv.sl_no}`}
                               >
@@ -420,7 +453,14 @@ const M12Deliverables = ({ projectId, isEditor, sectionId, sectionName }) => {
                       type="text"
                       className="input"
                       value={newDeliverable.sl_no}
-                      onChange={(e) => setNewDeliverable({ ...newDeliverable, sl_no: e.target.value })}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      onChange={(e) =>
+                        setNewDeliverable((current) => ({
+                          ...current,
+                          sl_no: sanitizeSlNoInput(e.target.value)
+                        }))
+                      }
                     />
                   </div>
                   <div className="form-group">

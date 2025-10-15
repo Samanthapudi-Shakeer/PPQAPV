@@ -178,35 +178,35 @@ const M4ProjectOverview = ({
   };
 
   const assumptionColumns = [
-    { key: "sl_no", label: "Sl. No" },
+    { key: "sl_no", label: "Sl. No", numericOnly: true },
     { key: "brief_description", label: "Brief Description" },
     { key: "impact_on_project_objectives", label: "Impact on Project Objectives" },
     { key: "remarks", label: "Remarks" }
   ];
 
   const constraintColumns = [
-    { key: "constraint_no", label: "Constraint No" },
+    { key: "constraint_no", label: "Sl. No", numericOnly: true },
     { key: "brief_description", label: "Brief Description" },
     { key: "impact_on_project_objectives", label: "Impact on Project Objectives" },
     { key: "remarks", label: "Remarks" }
   ];
 
   const dependencyColumns = [
-    { key: "sl_no", label: "Sl. No" },
+    { key: "sl_no", label: "Sl. No", numericOnly: true },
     { key: "brief_description", label: "Brief Description" },
     { key: "impact_on_project_objectives", label: "Impact on Project Objectives" },
     { key: "remarks", label: "Remarks" }
   ];
 
   const businessContinuityColumns = [
-    { key: "sl_no", label: "Sl. No" },
+    { key: "sl_no", label: "Sl. No", numericOnly: true },
     { key: "brief_description", label: "Brief Description" },
     { key: "impact_of_project_objectives", label: "Impact on Project Objectives" },
     { key: "remarks", label: "Remarks" }
   ];
 
   const infoSecurityColumns = [
-    { key: "sl_no", label: "Sl. No" },
+    { key: "sl_no", label: "Sl. No", numericOnly: true },
     { key: "phase", label: "Phase" },
     { key: "is_requirement_description", label: "IS Requirement Description" },
     { key: "monitoring_control", label: "Monitoring / Control" },

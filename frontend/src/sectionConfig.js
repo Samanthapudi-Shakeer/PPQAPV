@@ -486,7 +486,8 @@ export const SECTION_CONFIG = {
           { key: "phase_sprint_milestone", label: "Phase / Sprint / Milestone" },
           { key: "remarks", label: "Remarks" }
         ],
-        uniqueFields: ["sl_no"]
+        uniqueFields: ["sl_no"],
+        preventDuplicateRows: true
       },
       {
         key: "opportunity_value_history",
@@ -686,7 +687,7 @@ export const SECTION_CONFIG = {
         key: "sam_constraints",
         title: "SAM Constraints",
         columns: [
-          { key: "constraint_no", label: "Constraint No" },
+          { key: "constraint_no", label: "Sl. No" },
           { key: "brief_description", label: "Brief Description" },
           { key: "impact_on_project_objectives", label: "Impact on Project Objectives" },
           { key: "remarks", label: "Remarks" }

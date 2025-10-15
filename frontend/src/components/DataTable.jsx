@@ -89,6 +89,46 @@ const DataTable = ({
     [columns]
   );
 
+  const numericOnlyMap = useMemo(
+    () =>
+      columns.reduce((acc, column) => {
+        if (column.numericOnly || column.key === "sl_no" || column.key === "constraint_no") {
+          acc[column.key] = true;
+        }
+        return acc;
+      }, {}),
+    [columns]
+  );
+
+  const sanitizeValueForColumn = (value, columnKey) => {
+    if (!numericOnlyMap[columnKey]) {
+      return value;
+    }
+
+    if (value === null || value === undefined) {
+      return "";
+    }
+
+    const stringValue = String(value);
+    const digitsOnly = stringValue.replace(/\D+/g, "");
+    return digitsOnly;
+  };
+
+  const applyNumericSanitization = (payload) => {
+    if (!payload || Object.keys(numericOnlyMap).length === 0) {
+      return payload;
+    }
+
+    const nextPayload = { ...payload };
+    Object.keys(numericOnlyMap).forEach((key) => {
+      if (key in nextPayload) {
+        nextPayload[key] = sanitizeValueForColumn(nextPayload[key], key);
+      }
+    });
+
+    return nextPayload;
+  };
+
   const normalizeValue = (value) => {
     if (value === null || value === undefined) {
       return "";
@@ -270,15 +310,23 @@ const DataTable = ({
       normalizedRow[key] = normalizeDateInput(row[key]);
     });
 
+    Object.keys(numericOnlyMap).forEach((key) => {
+      if (normalizedRow[key] !== undefined) {
+        normalizedRow[key] = sanitizeValueForColumn(normalizedRow[key], key);
+      }
+    });
+
     setEditingId(row.id);
     setEditData(normalizedRow);
   };
 
   const handleSave = () => {
-    const payload = { ...editData };
+    let payload = { ...editData };
     dateColumnKeys.forEach((key) => {
       payload[key] = normalizeDateInput(payload[key]);
     });
+
+    payload = applyNumericSanitization(payload);
 
     if (!ensureNoDuplicates(payload, editingId)) {
       return;
@@ -295,10 +343,12 @@ const DataTable = ({
   };
 
   const handleAdd = () => {
-    const payload = { ...newRowData };
+    let payload = { ...newRowData };
     dateColumnKeys.forEach((key) => {
       payload[key] = normalizeDateInput(payload[key]);
     });
+
+    payload = applyNumericSanitization(payload);
 
     if (!ensureNoDuplicates(payload)) {
       return;
@@ -452,9 +502,16 @@ const DataTable = ({
                             className="input"
                             style={{ padding: "0.5rem", fontSize: "0.875rem" }}
                             value={editData[col.key] ?? ""}
-                            onChange={(e) =>
-                              setEditData({ ...editData, [col.key]: e.target.value })
-                            }
+                            inputMode={numericOnlyMap[col.key] ? "numeric" : undefined}
+                            pattern={numericOnlyMap[col.key] ? "[0-9]*" : undefined}
+                            onChange={(e) => {
+                              const rawValue = e.target.value;
+                              const sanitizedValue = sanitizeValueForColumn(rawValue, col.key);
+                              setEditData((current) => ({
+                                ...current,
+                                [col.key]: sanitizedValue
+                              }));
+                            }}
                           />
                         ) : (
                           (() => {
@@ -547,9 +604,16 @@ const DataTable = ({
                     type={isDateColumn(col) ? "date" : "text"}
                     className="input"
                     value={newRowData[col.key] ?? ""}
-                    onChange={(e) =>
-                      setNewRowData({ ...newRowData, [col.key]: e.target.value })
-                    }
+                    inputMode={numericOnlyMap[col.key] ? "numeric" : undefined}
+                    pattern={numericOnlyMap[col.key] ? "[0-9]*" : undefined}
+                    onChange={(e) => {
+                      const rawValue = e.target.value;
+                      const sanitizedValue = sanitizeValueForColumn(rawValue, col.key);
+                      setNewRowData((current) => ({
+                        ...current,
+                        [col.key]: sanitizedValue
+                      }));
+                    }}
                     placeholder={`Enter ${col.label.toLowerCase()}`}
                     data-testid={`new-${col.key}`}
                   />
