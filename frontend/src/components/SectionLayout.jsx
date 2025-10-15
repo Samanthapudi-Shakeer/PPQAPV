@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 
 const SectionLayout = ({
   title,
@@ -18,6 +18,7 @@ const SectionLayout = ({
 
   const [activeId, setActiveId] = useState(computedDefaultId);
   const [isSidebarOpen, setSidebarOpen] = useState(true);
+  const itemRefs = useRef({});
 
   useEffect(() => {
     setActiveId((current) => {
@@ -28,17 +29,52 @@ const SectionLayout = ({
     });
   }, [computedDefaultId, validItems]);
 
-  const activeItem = useMemo(
-    () => validItems.find((item) => item.id === activeId) || null,
-    [activeId, validItems]
-  );
-
   const handleSelect = (itemId) => {
     setActiveId(itemId);
-    if (typeof window !== "undefined") {
-      window.scrollTo({ top: 0, behavior: "smooth" });
+    const node = itemRefs.current[itemId];
+    if (node && typeof node.scrollIntoView === "function") {
+      node.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   };
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof IntersectionObserver === "undefined") {
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visibleEntry = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => {
+            const aIndex = Number(a.target.getAttribute("data-index") || 0);
+            const bIndex = Number(b.target.getAttribute("data-index") || 0);
+            return aIndex - bIndex;
+          })[0];
+
+        if (visibleEntry) {
+          const nextId = visibleEntry.target.getAttribute("data-item-id");
+          if (nextId) {
+            setActiveId((current) => (current === nextId ? current : nextId));
+          }
+        }
+      },
+      {
+        root: null,
+        rootMargin: "-30% 0px -50% 0px",
+        threshold: [0.1, 0.25, 0.5]
+      }
+    );
+
+    validItems.forEach((item) => {
+      const node = itemRefs.current[item.id];
+      if (node) {
+        observer.observe(node);
+      }
+    });
+
+    return () => observer.disconnect();
+  }, [validItems]);
 
   return (
     <div className="section-shell">
@@ -94,7 +130,36 @@ const SectionLayout = ({
           />
         ) : null}
         <div className="section-shell__content">
-          {activeItem ? activeItem.render() : (
+          {validItems.length ? (
+            <div className="section-shell__content-inner">
+              {validItems.map((item, index) => {
+                const shouldRenderHeading =
+                  item.heading !== undefined ? item.heading : item.type === "Table";
+
+                return (
+                  <section
+                    key={item.id}
+                    id={`section-${item.id}`}
+                    ref={(node) => {
+                      if (node) {
+                        itemRefs.current[item.id] = node;
+                      } else {
+                        delete itemRefs.current[item.id];
+                      }
+                    }}
+                    data-item-id={item.id}
+                    data-index={index}
+                    className="section-shell__content-section"
+                  >
+                    {shouldRenderHeading ? (
+                      <h3 className="section-shell__content-heading">{item.label}</h3>
+                    ) : null}
+                    <div className="section-shell__content-body">{item.render()}</div>
+                  </section>
+                );
+              })}
+            </div>
+          ) : (
             <div className="section-shell__empty">No content available for this section.</div>
           )}
         </div>
