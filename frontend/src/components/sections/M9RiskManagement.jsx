@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { API } from "../../App";
 import DataTable from "../DataTable";
+import SectionLayout from "../SectionLayout";
 import { useGenericTables } from "../../hooks/useGenericTables";
 import { SECTION_CONFIG } from "../../sectionConfig";
 
@@ -78,66 +79,55 @@ const M9RiskManagement = ({ projectId, isEditor }) => {
     }
   };
 
-  return (
-    <div>
-      <h2 style={{ fontSize: "1.5rem", fontWeight: "600", marginBottom: "1.5rem" }}>
-        M9 - Risk Management
-      </h2>
-
-      {config.tables?.length ? (
-        loading ? (
-          <div className="loading">Loading tables...</div>
-        ) : (
-          <div className="section-tab-wrapper">
-            <div className="section-tab-strip" role="tablist" aria-label="Risk management tables">
-              {tables.map((table) => (
-                <button
-                  key={table.key}
-                  type="button"
-                  role="tab"
-                  className={`tab-button ${activeTableKey === table.key ? "active" : ""}`}
-                  aria-selected={activeTableKey === table.key}
-                  onClick={() => setActiveTableKey(table.key)}
-                >
-                  {table.title || table.name || table.key}
-                </button>
-              ))}
-            </div>
-
-            {activeTable && (
-              <div className="section-tab-panel" role="tabpanel">
-                <div className="section-tab-panel-header">
-                  <h3 className="section-tab-panel-title">
-                    {activeTable.title || activeTable.name || activeTable.key}
-                  </h3>
-                  {isEditor && activeRows.length === 0 && activeTable.prefillRows && (
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => handlePrefillRows(activeTable)}
-                    >
-                      Populate Defaults
-                    </button>
-                  )}
-                </div>
-
-                <DataTable
-                  columns={activeTable.columns}
-                  data={activeRows}
-                  onAdd={(newRow) => handleAddRow(activeTable.key, newRow)}
-                  onEdit={(rowId, updated) => handleEditRow(activeTable.key, rowId, updated)}
-                  onDelete={(rowId) => handleDeleteRow(activeTable.key, rowId)}
-                  isEditor={isEditor}
-                  addButtonText={activeTable.addButtonText || "Add Record"}
-                />
-              </div>
+  const tableItems = (config.tables || []).map((table) => ({
+    id: `table-${table.key}`,
+    label: table.title || table.name || table.key,
+    type: "Table",
+    render: () => (
+      loading ? (
+        <div className="loading">Loading tables...</div>
+      ) : (
+        <div className="card" style={{ padding: "1.5rem" }}>
+          <div className="section-tab-panel-header" style={{ marginBottom: "1rem" }}>
+            <h3 className="section-tab-panel-title">
+              {table.title || table.name || table.key}
+            </h3>
+            {isEditor && (tableData[table.key] || []).length === 0 && table.prefillRows && (
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => handlePrefillRows(table)}
+              >
+                Populate Defaults
+              </button>
             )}
           </div>
-        )
-      ) : (
-        <div className="info-message">No tables configured for this section.</div>
-      )}
-    </div>
-  );
+
+          <DataTable
+            columns={table.columns}
+            data={tableData[table.key] || []}
+            onAdd={(newRow) => handleAddRow(table.key, newRow)}
+            onEdit={(rowId, updated) => handleEditRow(table.key, rowId, updated)}
+            onDelete={(rowId) => handleDeleteRow(table.key, rowId)}
+            isEditor={isEditor}
+            addButtonText={table.addButtonText || "Add Record"}
+          />
+        </div>
+      )
+    )
+  }));
+
+  const navigationItems = [...tableItems];
+
+  if (!navigationItems.length) {
+    navigationItems.push({
+      id: "info-empty",
+      label: "Risk Guidance",
+      type: "Info",
+      render: () => <div className="info-message">No tables configured for this section.</div>
+    });
+  }
+
+  return <SectionLayout title="M9 - Risk Management" items={navigationItems} />;
 };
 
 export default M9RiskManagement;
