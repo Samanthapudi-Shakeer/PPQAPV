@@ -1,5 +1,4 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { ArrowRightFromLine, ArrowLeftFromLine } from 'lucide-react';
 
 const SectionLayout = ({
   title,
@@ -18,7 +17,7 @@ const SectionLayout = ({
   }, [defaultItemId, validItems]);
 
   const [activeId, setActiveId] = useState(computedDefaultId);
-  const [isSidebarOpen, setSidebarOpen] = useState(false);
+  const [isSidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
     setActiveId((current) => {
@@ -36,7 +35,6 @@ const SectionLayout = ({
 
   const handleSelect = (itemId) => {
     setActiveId(itemId);
-    setSidebarOpen(false);
     if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
@@ -50,7 +48,7 @@ const SectionLayout = ({
           className="btn btn-outline btn-sm section-shell__nav-toggle"
           onClick={() => setSidebarOpen((open) => !open)}
         >
-       {isSidebarOpen ? <ArrowLeftFromLine /> : <ArrowRightFromLine />}
+          {isSidebarOpen ? "Close Navigation" : "Open Navigation"}
         </button>
         {title ? <h2 className="section-shell__title">{title}</h2> : null}
       </div>

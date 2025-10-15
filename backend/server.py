@@ -1683,11 +1683,27 @@ async def init_default_users() -> None:
         await session.commit()
 
 
-async def get_project_or_404(session: AsyncSession, project_id: str) -> ProjectTable:
+async def get_project_or_404(
+    session: AsyncSession,
+    project_id: str,
+    current_user: Optional["UserProfile"] = None,
+) -> ProjectTable:
     result = await session.execute(select(ProjectTable).where(ProjectTable.id == project_id))
     project = result.scalar_one_or_none()
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
+
+    if current_user is not None and current_user.role != "admin":
+        access_result = await session.execute(
+            select(ProjectAccessTable.visible).where(
+                ProjectAccessTable.user_id == current_user.id,
+                ProjectAccessTable.project_id == project_id,
+            )
+        )
+        visible_override = access_result.scalar_one_or_none()
+        if visible_override is False:
+            raise HTTPException(status_code=404, detail="Project not found")
+
     return project
 
 
@@ -1764,7 +1780,7 @@ async def get_current_user_info(current_user: UserProfile = Depends(get_current_
 @api_router.post("/users", response_model=UserProfile)
 async def create_user(
     user: UserCreate,
-    _: UserProfile = Depends(require_admin),
+    current_user: UserProfile = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ) -> UserProfile:
     existing = await session.execute(select(UserTable).where(UserTable.email == user.email))
@@ -1785,7 +1801,7 @@ async def create_user(
 
 @api_router.get("/users", response_model=List[UserProfile])
 async def get_all_users(
-    _: UserProfile = Depends(require_admin),
+    current_user: UserProfile = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ) -> List[UserProfile]:
     result = await session.execute(select(UserTable))
@@ -1796,7 +1812,7 @@ async def get_all_users(
 async def update_user_role(
     user_id: str,
     payload: UserRoleUpdate,
-    _: UserProfile = Depends(require_admin),
+    current_user: UserProfile = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ) -> UserProfile:
     user = await fetch_user_by_id(session, user_id)
@@ -1834,7 +1850,7 @@ async def delete_user(
 @api_router.get("/users/{user_id}/project-access", response_model=List[ProjectAccess])
 async def list_user_project_access(
     user_id: str,
-    _: UserProfile = Depends(require_admin),
+    current_user: UserProfile = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ) -> List[ProjectAccess]:
     user = await fetch_user_by_id(session, user_id)
@@ -1854,7 +1870,7 @@ async def upsert_project_access(
     user_id: str,
     project_id: str,
     payload: ProjectAccessUpdate,
-    _: UserProfile = Depends(require_admin),
+    current_user: UserProfile = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ) -> ProjectAccess:
     user = await fetch_user_by_id(session, user_id)
@@ -1887,7 +1903,7 @@ async def upsert_project_access(
 @api_router.delete("/users/{user_id}/project-access")
 async def reset_project_access(
     user_id: str,
-    _: UserProfile = Depends(require_admin),
+    current_user: UserProfile = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ) -> Dict[str, str]:
     user = await fetch_user_by_id(session, user_id)
@@ -1945,20 +1961,20 @@ async def get_projects(
 @api_router.get("/projects/{project_id}", response_model=Project)
 async def get_project(
     project_id: str,
-    _: UserProfile = Depends(get_current_user),
+    current_user: UserProfile = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> Project:
-    project = await get_project_or_404(session, project_id)
+    project = await get_project_or_404(session, project_id, current_user)
     return to_schema(Project, project)
 
 
 @api_router.delete("/projects/{project_id}")
 async def delete_project(
     project_id: str,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> Dict[str, str]:
-    project = await get_project_or_404(session, project_id)
+    project = await get_project_or_404(session, project_id, current_user)
     await session.delete(project)
     await purge_project_children(session, project_id)
     return {"message": "Project deleted successfully"}
@@ -1973,7 +1989,9 @@ async def create_project_item(
     schema: Type[SchemaType],
     project_id: str,
     payload: BaseModel,
+    current_user: Optional["UserProfile"] = None,
 ) -> SchemaType:
+    await get_project_or_404(session, project_id, current_user)
     obj = table(project_id=project_id, **payload.model_dump())
     session.add(obj)
     await session.commit()
@@ -1987,7 +2005,9 @@ async def list_project_items(
     schema: Type[SchemaType],
     project_id: str,
     order_by: Optional[Any] = None,
+    current_user: Optional["UserProfile"] = None,
 ) -> List[SchemaType]:
+    await get_project_or_404(session, project_id, current_user)
     stmt = select(table).where(table.project_id == project_id)
     if order_by is not None:
         stmt = stmt.order_by(order_by)
@@ -2003,7 +2023,9 @@ async def update_project_item(
     item_id: str,
     payload: BaseModel,
     extra_updates: Optional[Dict[str, Any]] = None,
+    current_user: Optional["UserProfile"] = None,
 ) -> SchemaType:
+    await get_project_or_404(session, project_id, current_user)
     obj = await get_item_or_404(session, table, item_id, project_id)
     data = payload.model_dump()
     if extra_updates:
@@ -2020,7 +2042,9 @@ async def delete_project_item(
     table: Type[TableType],
     project_id: str,
     item_id: str,
+    current_user: Optional["UserProfile"] = None,
 ) -> Dict[str, str]:
+    await get_project_or_404(session, project_id, current_user)
     obj = await get_item_or_404(session, table, item_id, project_id)
     await session.delete(obj)
     await session.commit()
@@ -2034,19 +2058,32 @@ async def delete_project_item(
 async def create_revision_history(
     project_id: str,
     item: RevisionHistoryCreate,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> RevisionHistory:
-    return await create_project_item(session, RevisionHistoryTable, RevisionHistory, project_id, item)
+    return await create_project_item(
+        session,
+        RevisionHistoryTable,
+        RevisionHistory,
+        project_id,
+        item,
+        current_user=current_user,
+    )
 
 
 @api_router.get("/projects/{project_id}/revision-history", response_model=List[RevisionHistory])
 async def get_revision_history(
     project_id: str,
-    _: UserProfile = Depends(get_current_user),
+    current_user: UserProfile = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> List[RevisionHistory]:
-    return await list_project_items(session, RevisionHistoryTable, RevisionHistory, project_id)
+    return await list_project_items(
+        session,
+        RevisionHistoryTable,
+        RevisionHistory,
+        project_id,
+        current_user=current_user,
+    )
 
 
 @api_router.put("/projects/{project_id}/revision-history/{item_id}", response_model=RevisionHistory)
@@ -2054,39 +2091,66 @@ async def update_revision_history(
     project_id: str,
     item_id: str,
     item: RevisionHistoryCreate,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> RevisionHistory:
-    return await update_project_item(session, RevisionHistoryTable, RevisionHistory, project_id, item_id, item)
+    return await update_project_item(
+        session,
+        RevisionHistoryTable,
+        RevisionHistory,
+        project_id,
+        item_id,
+        item,
+        current_user=current_user,
+    )
 
 
 @api_router.delete("/projects/{project_id}/revision-history/{item_id}")
 async def delete_revision_history(
     project_id: str,
     item_id: str,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> Dict[str, str]:
-    return await delete_project_item(session, RevisionHistoryTable, project_id, item_id)
+    return await delete_project_item(
+        session,
+        RevisionHistoryTable,
+        project_id,
+        item_id,
+        current_user=current_user,
+    )
 
 
 @api_router.post("/projects/{project_id}/toc-entries", response_model=TOCEntry)
 async def create_toc_entry(
     project_id: str,
     item: TOCEntryCreate,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> TOCEntry:
-    return await create_project_item(session, TOCEntryTable, TOCEntry, project_id, item)
+    return await create_project_item(
+        session,
+        TOCEntryTable,
+        TOCEntry,
+        project_id,
+        item,
+        current_user=current_user,
+    )
 
 
 @api_router.get("/projects/{project_id}/toc-entries", response_model=List[TOCEntry])
 async def get_toc_entries(
     project_id: str,
-    _: UserProfile = Depends(get_current_user),
+    current_user: UserProfile = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> List[TOCEntry]:
-    return await list_project_items(session, TOCEntryTable, TOCEntry, project_id)
+    return await list_project_items(
+        session,
+        TOCEntryTable,
+        TOCEntry,
+        project_id,
+        current_user=current_user,
+    )
 
 
 @api_router.put("/projects/{project_id}/toc-entries/{item_id}", response_model=TOCEntry)
@@ -2094,39 +2158,66 @@ async def update_toc_entry(
     project_id: str,
     item_id: str,
     item: TOCEntryCreate,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> TOCEntry:
-    return await update_project_item(session, TOCEntryTable, TOCEntry, project_id, item_id, item)
+    return await update_project_item(
+        session,
+        TOCEntryTable,
+        TOCEntry,
+        project_id,
+        item_id,
+        item,
+        current_user=current_user,
+    )
 
 
 @api_router.delete("/projects/{project_id}/toc-entries/{item_id}")
 async def delete_toc_entry(
     project_id: str,
     item_id: str,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> Dict[str, str]:
-    return await delete_project_item(session, TOCEntryTable, project_id, item_id)
+    return await delete_project_item(
+        session,
+        TOCEntryTable,
+        project_id,
+        item_id,
+        current_user=current_user,
+    )
 
 
 @api_router.post("/projects/{project_id}/definition-acronyms", response_model=DefinitionAcronym)
 async def create_definition_acronym(
     project_id: str,
     item: DefinitionAcronymCreate,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> DefinitionAcronym:
-    return await create_project_item(session, DefinitionAcronymTable, DefinitionAcronym, project_id, item)
+    return await create_project_item(
+        session,
+        DefinitionAcronymTable,
+        DefinitionAcronym,
+        project_id,
+        item,
+        current_user=current_user,
+    )
 
 
 @api_router.get("/projects/{project_id}/definition-acronyms", response_model=List[DefinitionAcronym])
 async def get_definition_acronyms(
     project_id: str,
-    _: UserProfile = Depends(get_current_user),
+    current_user: UserProfile = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> List[DefinitionAcronym]:
-    return await list_project_items(session, DefinitionAcronymTable, DefinitionAcronym, project_id)
+    return await list_project_items(
+        session,
+        DefinitionAcronymTable,
+        DefinitionAcronym,
+        project_id,
+        current_user=current_user,
+    )
 
 
 @api_router.put("/projects/{project_id}/definition-acronyms/{item_id}", response_model=DefinitionAcronym)
@@ -2134,29 +2225,44 @@ async def update_definition_acronym(
     project_id: str,
     item_id: str,
     item: DefinitionAcronymCreate,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> DefinitionAcronym:
-    return await update_project_item(session, DefinitionAcronymTable, DefinitionAcronym, project_id, item_id, item)
+    return await update_project_item(
+        session,
+        DefinitionAcronymTable,
+        DefinitionAcronym,
+        project_id,
+        item_id,
+        item,
+        current_user=current_user,
+    )
 
 
 @api_router.delete("/projects/{project_id}/definition-acronyms/{item_id}")
 async def delete_definition_acronym(
     project_id: str,
     item_id: str,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> Dict[str, str]:
-    return await delete_project_item(session, DefinitionAcronymTable, project_id, item_id)
+    return await delete_project_item(
+        session,
+        DefinitionAcronymTable,
+        project_id,
+        item_id,
+        current_user=current_user,
+    )
 
 
 @api_router.post("/projects/{project_id}/single-entry", response_model=SingleEntryField)
 async def create_or_update_single_entry(
     project_id: str,
     item: SingleEntryFieldCreate,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> SingleEntryField:
+    await get_project_or_404(session, project_id, current_user)
     stmt = select(SingleEntryFieldTable).where(
         SingleEntryFieldTable.project_id == project_id,
         SingleEntryFieldTable.field_name == item.field_name,
@@ -2181,9 +2287,10 @@ async def create_or_update_single_entry(
 async def get_single_entry(
     project_id: str,
     field_name: str,
-    _: UserProfile = Depends(get_current_user),
+    current_user: UserProfile = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> Optional[SingleEntryField]:
+    await get_project_or_404(session, project_id, current_user)
     stmt = select(SingleEntryFieldTable).where(
         SingleEntryFieldTable.project_id == project_id,
         SingleEntryFieldTable.field_name == field_name,
@@ -2196,12 +2303,10 @@ async def get_single_entry(
 @api_router.get("/projects/{project_id}/export/xlsx")
 async def export_project_xlsx(
     project_id: str,
-    _: UserProfile = Depends(get_current_user),
+    current_user: UserProfile = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    project = await session.get(ProjectTable, project_id)
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await get_project_or_404(session, project_id, current_user)
 
     workbook = Workbook()
     used_titles: Set[str] = set()
@@ -2329,18 +2434,19 @@ async def export_project_xlsx(
 async def create_project_details(
     project_id: str,
     item: ProjectDetailsCreate,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> ProjectDetails:
-    return await create_project_item(session, ProjectDetailsTable, ProjectDetails, project_id, item)
+    return await create_project_item(session, ProjectDetailsTable, ProjectDetails, project_id, item, current_user=current_user)
 
 
 @api_router.get("/projects/{project_id}/project-details", response_model=Optional[ProjectDetails])
 async def get_project_details(
     project_id: str,
-    _: UserProfile = Depends(get_current_user),
+    current_user: UserProfile = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> Optional[ProjectDetails]:
+    await get_project_or_404(session, project_id, current_user)
     stmt = select(ProjectDetailsTable).where(ProjectDetailsTable.project_id == project_id)
     result = await session.execute(stmt)
     row = result.scalar_one_or_none()
@@ -2352,29 +2458,29 @@ async def update_project_details(
     project_id: str,
     item_id: str,
     item: ProjectDetailsCreate,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> ProjectDetails:
-    return await update_project_item(session, ProjectDetailsTable, ProjectDetails, project_id, item_id, item)
+    return await update_project_item(session, ProjectDetailsTable, ProjectDetails, project_id, item_id, item, current_user=current_user)
 
 
 @api_router.post("/projects/{project_id}/assumptions", response_model=Assumption)
 async def create_assumption(
     project_id: str,
     item: AssumptionCreate,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> Assumption:
-    return await create_project_item(session, AssumptionTable, Assumption, project_id, item)
+    return await create_project_item(session, AssumptionTable, Assumption, project_id, item, current_user=current_user)
 
 
 @api_router.get("/projects/{project_id}/assumptions", response_model=List[Assumption])
 async def get_assumptions(
     project_id: str,
-    _: UserProfile = Depends(get_current_user),
+    current_user: UserProfile = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> List[Assumption]:
-    return await list_project_items(session, AssumptionTable, Assumption, project_id)
+    return await list_project_items(session, AssumptionTable, Assumption, project_id, current_user=current_user)
 
 
 @api_router.put("/projects/{project_id}/assumptions/{item_id}", response_model=Assumption)
@@ -2382,39 +2488,39 @@ async def update_assumption(
     project_id: str,
     item_id: str,
     item: AssumptionCreate,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> Assumption:
-    return await update_project_item(session, AssumptionTable, Assumption, project_id, item_id, item)
+    return await update_project_item(session, AssumptionTable, Assumption, project_id, item_id, item, current_user=current_user)
 
 
 @api_router.delete("/projects/{project_id}/assumptions/{item_id}")
 async def delete_assumption(
     project_id: str,
     item_id: str,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> Dict[str, str]:
-    return await delete_project_item(session, AssumptionTable, project_id, item_id)
+    return await delete_project_item(session, AssumptionTable, project_id, item_id, current_user=current_user)
 
 
 @api_router.post("/projects/{project_id}/constraints", response_model=Constraint)
 async def create_constraint(
     project_id: str,
     item: ConstraintCreate,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> Constraint:
-    return await create_project_item(session, ConstraintTable, Constraint, project_id, item)
+    return await create_project_item(session, ConstraintTable, Constraint, project_id, item, current_user=current_user)
 
 
 @api_router.get("/projects/{project_id}/constraints", response_model=List[Constraint])
 async def get_constraints(
     project_id: str,
-    _: UserProfile = Depends(get_current_user),
+    current_user: UserProfile = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> List[Constraint]:
-    return await list_project_items(session, ConstraintTable, Constraint, project_id)
+    return await list_project_items(session, ConstraintTable, Constraint, project_id, current_user=current_user)
 
 
 @api_router.put("/projects/{project_id}/constraints/{item_id}", response_model=Constraint)
@@ -2422,39 +2528,39 @@ async def update_constraint(
     project_id: str,
     item_id: str,
     item: ConstraintCreate,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> Constraint:
-    return await update_project_item(session, ConstraintTable, Constraint, project_id, item_id, item)
+    return await update_project_item(session, ConstraintTable, Constraint, project_id, item_id, item, current_user=current_user)
 
 
 @api_router.delete("/projects/{project_id}/constraints/{item_id}")
 async def delete_constraint(
     project_id: str,
     item_id: str,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> Dict[str, str]:
-    return await delete_project_item(session, ConstraintTable, project_id, item_id)
+    return await delete_project_item(session, ConstraintTable, project_id, item_id, current_user=current_user)
 
 
 @api_router.post("/projects/{project_id}/dependencies", response_model=Dependency)
 async def create_dependency(
     project_id: str,
     item: DependencyCreate,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> Dependency:
-    return await create_project_item(session, DependencyTable, Dependency, project_id, item)
+    return await create_project_item(session, DependencyTable, Dependency, project_id, item, current_user=current_user)
 
 
 @api_router.get("/projects/{project_id}/dependencies", response_model=List[Dependency])
 async def get_dependencies(
     project_id: str,
-    _: UserProfile = Depends(get_current_user),
+    current_user: UserProfile = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> List[Dependency]:
-    return await list_project_items(session, DependencyTable, Dependency, project_id)
+    return await list_project_items(session, DependencyTable, Dependency, project_id, current_user=current_user)
 
 
 @api_router.put("/projects/{project_id}/dependencies/{item_id}", response_model=Dependency)
@@ -2462,39 +2568,39 @@ async def update_dependency(
     project_id: str,
     item_id: str,
     item: DependencyCreate,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> Dependency:
-    return await update_project_item(session, DependencyTable, Dependency, project_id, item_id, item)
+    return await update_project_item(session, DependencyTable, Dependency, project_id, item_id, item, current_user=current_user)
 
 
 @api_router.delete("/projects/{project_id}/dependencies/{item_id}")
 async def delete_dependency(
     project_id: str,
     item_id: str,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> Dict[str, str]:
-    return await delete_project_item(session, DependencyTable, project_id, item_id)
+    return await delete_project_item(session, DependencyTable, project_id, item_id, current_user=current_user)
 
 
 @api_router.post("/projects/{project_id}/stakeholders", response_model=Stakeholder)
 async def create_stakeholder(
     project_id: str,
     item: StakeholderCreate,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> Stakeholder:
-    return await create_project_item(session, StakeholderTable, Stakeholder, project_id, item)
+    return await create_project_item(session, StakeholderTable, Stakeholder, project_id, item, current_user=current_user)
 
 
 @api_router.get("/projects/{project_id}/stakeholders", response_model=List[Stakeholder])
 async def get_stakeholders(
     project_id: str,
-    _: UserProfile = Depends(get_current_user),
+    current_user: UserProfile = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> List[Stakeholder]:
-    return await list_project_items(session, StakeholderTable, Stakeholder, project_id)
+    return await list_project_items(session, StakeholderTable, Stakeholder, project_id, current_user=current_user)
 
 
 @api_router.put("/projects/{project_id}/stakeholders/{item_id}", response_model=Stakeholder)
@@ -2502,29 +2608,30 @@ async def update_stakeholder(
     project_id: str,
     item_id: str,
     item: StakeholderCreate,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> Stakeholder:
-    return await update_project_item(session, StakeholderTable, Stakeholder, project_id, item_id, item)
+    return await update_project_item(session, StakeholderTable, Stakeholder, project_id, item_id, item, current_user=current_user)
 
 
 @api_router.delete("/projects/{project_id}/stakeholders/{item_id}")
 async def delete_stakeholder(
     project_id: str,
     item_id: str,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> Dict[str, str]:
-    return await delete_project_item(session, StakeholderTable, project_id, item_id)
+    return await delete_project_item(session, StakeholderTable, project_id, item_id, current_user=current_user)
 
 
 @api_router.post("/projects/{project_id}/milestone-columns", response_model=MilestoneColumn)
 async def create_milestone_column(
     project_id: str,
     item: MilestoneColumnCreate,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> MilestoneColumn:
+    await get_project_or_404(session, project_id, current_user)
     result = await session.execute(
         select(func.max(MilestoneColumnTable.order)).where(MilestoneColumnTable.project_id == project_id)
     )
@@ -2539,7 +2646,7 @@ async def create_milestone_column(
 @api_router.get("/projects/{project_id}/milestone-columns", response_model=List[MilestoneColumn])
 async def get_milestone_columns(
     project_id: str,
-    _: UserProfile = Depends(get_current_user),
+    current_user: UserProfile = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> List[MilestoneColumn]:
     return await list_project_items(
@@ -2548,6 +2655,7 @@ async def get_milestone_columns(
         MilestoneColumn,
         project_id,
         order_by=MilestoneColumnTable.order.asc(),
+        current_user=current_user,
     )
 
 
@@ -2555,29 +2663,29 @@ async def get_milestone_columns(
 async def delete_milestone_column(
     project_id: str,
     column_id: str,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> Dict[str, str]:
-    return await delete_project_item(session, MilestoneColumnTable, project_id, column_id)
+    return await delete_project_item(session, MilestoneColumnTable, project_id, column_id, current_user=current_user)
 
 
 @api_router.post("/projects/{project_id}/deliverables", response_model=Deliverable)
 async def create_deliverable(
     project_id: str,
     item: DeliverableCreate,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> Deliverable:
-    return await create_project_item(session, DeliverableTable, Deliverable, project_id, item)
+    return await create_project_item(session, DeliverableTable, Deliverable, project_id, item, current_user=current_user)
 
 
 @api_router.get("/projects/{project_id}/deliverables", response_model=List[Deliverable])
 async def get_deliverables(
     project_id: str,
-    _: UserProfile = Depends(get_current_user),
+    current_user: UserProfile = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> List[Deliverable]:
-    return await list_project_items(session, DeliverableTable, Deliverable, project_id)
+    return await list_project_items(session, DeliverableTable, Deliverable, project_id, current_user=current_user)
 
 
 @api_router.put("/projects/{project_id}/deliverables/{item_id}", response_model=Deliverable)
@@ -2585,29 +2693,30 @@ async def update_deliverable(
     project_id: str,
     item_id: str,
     item: DeliverableCreate,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> Deliverable:
-    return await update_project_item(session, DeliverableTable, Deliverable, project_id, item_id, item)
+    return await update_project_item(session, DeliverableTable, Deliverable, project_id, item_id, item, current_user=current_user)
 
 
 @api_router.delete("/projects/{project_id}/deliverables/{item_id}")
 async def delete_deliverable(
     project_id: str,
     item_id: str,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> Dict[str, str]:
-    return await delete_project_item(session, DeliverableTable, project_id, item_id)
+    return await delete_project_item(session, DeliverableTable, project_id, item_id, current_user=current_user)
 
 
 @api_router.post("/projects/{project_id}/sam-milestone-columns", response_model=SamMilestoneColumn)
 async def create_sam_milestone_column(
     project_id: str,
     item: SamMilestoneColumnCreate,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> SamMilestoneColumn:
+    await get_project_or_404(session, project_id, current_user)
     result = await session.execute(
         select(func.max(SamMilestoneColumnTable.order)).where(
             SamMilestoneColumnTable.project_id == project_id
@@ -2626,9 +2735,10 @@ async def create_sam_milestone_column(
 @api_router.get("/projects/{project_id}/sam-milestone-columns", response_model=List[SamMilestoneColumn])
 async def get_sam_milestone_columns(
     project_id: str,
-    _: UserProfile = Depends(get_current_user),
+    current_user: UserProfile = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> List[SamMilestoneColumn]:
+    await get_project_or_404(session, project_id, current_user)
     stmt = (
         select(SamMilestoneColumnTable)
         .where(SamMilestoneColumnTable.project_id == project_id)
@@ -2642,11 +2752,15 @@ async def get_sam_milestone_columns(
 async def delete_sam_milestone_column(
     project_id: str,
     column_id: str,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> Dict[str, str]:
     return await delete_project_item(
-        session, SamMilestoneColumnTable, project_id, column_id
+        session,
+        SamMilestoneColumnTable,
+        project_id,
+        column_id,
+        current_user=current_user,
     )
 
 
@@ -2654,22 +2768,31 @@ async def delete_sam_milestone_column(
 async def create_sam_deliverable(
     project_id: str,
     item: SamDeliverableCreate,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> SamDeliverable:
     return await create_project_item(
-        session, SamDeliverableTable, SamDeliverable, project_id, item
+        session,
+        SamDeliverableTable,
+        SamDeliverable,
+        project_id,
+        item,
+        current_user=current_user,
     )
 
 
 @api_router.get("/projects/{project_id}/sam-deliverables", response_model=List[SamDeliverable])
 async def get_sam_deliverables(
     project_id: str,
-    _: UserProfile = Depends(get_current_user),
+    current_user: UserProfile = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> List[SamDeliverable]:
     return await list_project_items(
-        session, SamDeliverableTable, SamDeliverable, project_id
+        session,
+        SamDeliverableTable,
+        SamDeliverable,
+        project_id,
+        current_user=current_user,
     )
 
 
@@ -2680,11 +2803,17 @@ async def update_sam_deliverable(
     project_id: str,
     item_id: str,
     item: SamDeliverableCreate,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> SamDeliverable:
     return await update_project_item(
-        session, SamDeliverableTable, SamDeliverable, project_id, item_id, item
+        session,
+        SamDeliverableTable,
+        SamDeliverable,
+        project_id,
+        item_id,
+        item,
+        current_user=current_user,
     )
 
 
@@ -2692,11 +2821,15 @@ async def update_sam_deliverable(
 async def delete_sam_deliverable(
     project_id: str,
     item_id: str,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> Dict[str, str]:
     return await delete_project_item(
-        session, SamDeliverableTable, project_id, item_id
+        session,
+        SamDeliverableTable,
+        project_id,
+        item_id,
+        current_user=current_user,
     )
 
 
@@ -2709,9 +2842,10 @@ async def create_generic_table_row(
     section: str,
     table_name: str,
     item: GenericTableRowCreate,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> GenericTableRow:
+    await get_project_or_404(session, project_id, current_user)
     meta = resolve_section_table(section, table_name)
     row = meta.model(
         project_id=project_id,
@@ -2731,9 +2865,10 @@ async def get_generic_table_rows(
     project_id: str,
     section: str,
     table_name: str,
-    _: UserProfile = Depends(get_current_user),
+    current_user: UserProfile = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> List[GenericTableRow]:
+    await get_project_or_404(session, project_id, current_user)
     meta = resolve_section_table(section, table_name)
     stmt = select(meta.model).where(meta.model.project_id == project_id)
     result = await session.execute(stmt)
@@ -2753,9 +2888,10 @@ async def update_generic_table_row(
     table_name: str,
     item_id: str,
     item: GenericTableRowCreate,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> GenericTableRow:
+    await get_project_or_404(session, project_id, current_user)
     meta = resolve_section_table(section, table_name)
     row = await get_item_or_404(session, meta.model, item_id, project_id)
     for column in meta.columns:
@@ -2773,9 +2909,10 @@ async def delete_generic_table_row(
     section: str,
     table_name: str,
     item_id: str,
-    _: UserProfile = Depends(require_editor),
+    current_user: UserProfile = Depends(require_editor),
     session: AsyncSession = Depends(get_session),
 ) -> Dict[str, str]:
+    await get_project_or_404(session, project_id, current_user)
     meta = resolve_section_table(section, table_name)
     row = await get_item_or_404(session, meta.model, item_id, project_id)
     await session.delete(row)
