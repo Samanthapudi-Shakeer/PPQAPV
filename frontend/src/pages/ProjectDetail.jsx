@@ -34,47 +34,14 @@ const SECTION_DEFINITIONS = [
   { id: "M13", name: "Supplier Agreement", component: M13SupplierAgreement }
 ];
 
-const SECTION_DEFINITIONS = [
-  { id: "M1", name: "Revision History", component: M1RevisionHistory },
-  { id: "M2", name: "TOC", component: M2TOC },
-  { id: "M3", name: "Definitions & References", component: M3Definitions },
-  { id: "M4", name: "Project Introduction", component: M4ProjectOverview },
-  { id: "M5", name: "Resource Plan & Estimation", component: M5Resources },
-  { id: "M6", name: "PMC & Project Objectives", component: M6MonitoringControl },
-  { id: "M7", name: "Quality Management", component: M7QualityManagement },
-  { id: "M8", name: "DAR, Tailoring and Release Plan", component: M8DecisionManagement },
-  { id: "M9", name: "Risk Management", component: M9RiskManagement },
-  { id: "M10", name: "Opportunity Management", component: M10OpportunityManagement },
-  { id: "M11", name: "Configuration Management", component: M11ConfigurationManagement },
-  { id: "M12", name: "List of Deliverables", component: M12Deliverables },
-  { id: "M13", name: "Supplier Agreement", component: M13SupplierAgreement }
-];
 
 const SECTION_LOOKUP = SECTION_DEFINITIONS.reduce((accumulator, definition) => {
   accumulator[definition.id] = definition;
   return accumulator;
 }, {});
 
-const SECTION_DEFINITIONS = [
-  { id: "M1", name: "Revision History", component: M1RevisionHistory },
-  { id: "M2", name: "TOC", component: M2TOC },
-  { id: "M3", name: "Definitions & References", component: M3Definitions },
-  { id: "M4", name: "Project Introduction", component: M4ProjectOverview },
-  { id: "M5", name: "Resource Plan & Estimation", component: M5Resources },
-  { id: "M6", name: "PMC & Project Objectives", component: M6MonitoringControl },
-  { id: "M7", name: "Quality Management", component: M7QualityManagement },
-  { id: "M8", name: "DAR, Tailoring and Release Plan", component: M8DecisionManagement },
-  { id: "M9", name: "Risk Management", component: M9RiskManagement },
-  { id: "M10", name: "Opportunity Management", component: M10OpportunityManagement },
-  { id: "M11", name: "Configuration Management", component: M11ConfigurationManagement },
-  { id: "M12", name: "List of Deliverables", component: M12Deliverables },
-  { id: "M13", name: "Supplier Agreement", component: M13SupplierAgreement }
-];
 
-const SECTION_LOOKUP = SECTION_DEFINITIONS.reduce((accumulator, definition) => {
-  accumulator[definition.id] = definition;
-  return accumulator;
-}, {});
+
 
 const ProjectDetail = () => {
   const { projectId } = useParams();
@@ -163,30 +130,19 @@ const ProjectDetail = () => {
     [attemptTabChange]
   );
 
-  useEffect(() => {
-    if (!registerSectionNavigator) {
-      return undefined;
-    }
 
+    useEffect(() => {
+    if (!registerSectionNavigator) return;
     const unregister = registerSectionNavigator({ navigate: navigateWithinProject });
     return unregister;
-  }, [registerSectionNavigator, navigateWithinProject]);
+  }, []);
 
-  const hasUnsavedChanges = Object.values(singleEntryDirtySections).some(Boolean);
 
-  const handleBackToProjects = useCallback(() => {
-    if (hasUnsavedChanges) {
-      const confirmLeave = window.confirm(
-        "You have unsaved single-entry changes in this project. Leave without saving?"
-      );
-      if (!confirmLeave) {
-        return;
-      }
-    }
 
-    navigate("/projects");
-  }, [hasUnsavedChanges, navigate]);
-
+	const handleBackToProjects = useCallback(() => {
+  navigate("/projects");
+}, [navigate]);
+ 
   if (loading) {
     return (
       <div className="page-container">
@@ -195,23 +151,7 @@ const ProjectDetail = () => {
     );
   }
 
-  const hasUnsavedChanges = useMemo(
-    () => Object.values(singleEntryDirtySections).some(Boolean),
-    [singleEntryDirtySections]
-  );
 
-  const handleBackToProjects = useCallback(() => {
-    if (hasUnsavedChanges) {
-      const confirmLeave = window.confirm(
-        "You have unsaved single-entry changes in this project. Leave without saving?"
-      );
-      if (!confirmLeave) {
-        return;
-      }
-    }
-
-    navigate("/projects");
-  }, [hasUnsavedChanges, navigate]);
 
   if (error || !project) {
     return (
