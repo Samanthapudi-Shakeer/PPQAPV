@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import { Pencil, Trash2 } from "lucide-react";
 import { API } from "../../App";
 
 const defaultWorkProducts = [
@@ -19,6 +20,39 @@ const defaultWorkProducts = [
   "Project Metrics Report",
   "Casual Analysis and Resolution"
 ];
+
+const normalizeSlValue = (value) => {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  if (typeof value === "string") {
+    return value.trim().toLowerCase();
+  }
+
+  return String(value).trim().toLowerCase();
+};
+
+const resolveRowIdentifier = (row) => {
+  if (!row) return null;
+  if (row.id !== undefined && row.id !== null) return String(row.id);
+  if (row._id !== undefined && row._id !== null) return String(row._id);
+  return null;
+};
+
+const hasDuplicateSlNumber = (rows, slValue, ignoreId = null) => {
+  const normalized = normalizeSlValue(slValue);
+  const ignore = ignoreId !== null && ignoreId !== undefined ? String(ignoreId) : null;
+
+  return rows.some((row) => {
+    const rowId = resolveRowIdentifier(row);
+    if (ignore && rowId === ignore) {
+      return false;
+    }
+
+    return normalizeSlValue(row.sl_no) === normalized;
+  });
+};
 
 const SamDeliverables = ({ projectId, isEditor }) => {
   const [deliverables, setDeliverables] = useState([]);
@@ -101,6 +135,11 @@ const SamDeliverables = ({ projectId, isEditor }) => {
   };
 
   const handleAddDeliverable = async () => {
+    if (hasDuplicateSlNumber(deliverables, newDeliverable.sl_no)) {
+      alert("Sl. No must be unique. Please provide a different value before saving.");
+      return;
+    }
+
     try {
       await axios.post(`${API}/projects/${projectId}/sam-deliverables`, newDeliverable);
       setNewDeliverable({
@@ -119,6 +158,11 @@ const SamDeliverables = ({ projectId, isEditor }) => {
   };
 
   const handleEditDeliverable = async (id) => {
+    if (hasDuplicateSlNumber(deliverables, editData.sl_no, id)) {
+      alert("Sl. No must be unique. Please provide a different value before saving.");
+      return;
+    }
+
     try {
       const { id: _, project_id, ...payload } = editData;
       await axios.put(`${API}/projects/${projectId}/sam-deliverables/${id}`, payload);
@@ -189,7 +233,7 @@ const SamDeliverables = ({ projectId, isEditor }) => {
         </div>
       )}
 
-      <div className="table-container" style={{ overflowX: "auto" }}>
+      <div className="table-container">
         <table className="data-table">
           <thead>
             <tr>
@@ -361,19 +405,21 @@ const SamDeliverables = ({ projectId, isEditor }) => {
                       ) : (
                         <div style={{ display: "flex", gap: "0.5rem" }}>
                           <button
-                            className="btn btn-primary btn-sm"
+                            className="btn btn-outline btn-icon"
                             onClick={() => {
                               setEditingId(deliverable.id);
                               setEditData(deliverable);
                             }}
+                            aria-label={`Edit deliverable ${deliverable.work_product || deliverable.sl_no}`}
                           >
-                            Edit
+                            <Pencil size={16} aria-hidden="true" />
                           </button>
                           <button
-                            className="btn btn-danger btn-sm"
+                            className="btn btn-danger btn-icon"
                             onClick={() => handleDeleteDeliverable(deliverable.id)}
+                            aria-label={`Delete deliverable ${deliverable.work_product || deliverable.sl_no}`}
                           >
-                            Delete
+                            <Trash2 size={16} aria-hidden="true" />
                           </button>
                         </div>
                       )}
